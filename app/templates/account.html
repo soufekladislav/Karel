@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container narrow">
+  <section class="hero-row"><div><div class="eyebrow">Nastavení</div><h1>Účet</h1><p class="muted">Základní nastavení tvého přístupu do Karla.</p></div><div class="karel-guide small"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>Jsem pořád tady.</b><span>Účet nastavíme jednoduše, projektovou práci řešíme v chatu.</span></div></div></section>
+  <div class="card"><h3>Tvůj profil</h3><form method="post" action="/account/profile" class="form-grid"><label>Jméno<input name="name" value="{{ user.name or '' }}"></label><label>E-mail<input value="{{ user.email }}" disabled></label><label>Nové heslo<input type="password" name="password" placeholder="Nech prázdné, pokud ho nechceš měnit"></label><div><button class="btn primary">Uložit změny</button></div></form></div>
+  {% if user.role=='superadmin' or user.email=='soufek@freshcrackers.cz' %}<div class="notice-box">Správu uživatelů a provozu najdeš nově v <a href="/admin"><b>Admin konzoli →</b></a></div>{% endif %}
+</div>
+{% endblock %}

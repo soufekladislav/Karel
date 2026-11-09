@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block pageclass %}login-page{% endblock %}
+{% block content %}
+<section class="login-stage">
+  <div class="login-copy">
+    <div class="brand-mini"><img src="https://www.freshcrackers.cz/wp-content/uploads/2023/10/Fresh-Crackers-Logo.png" alt="Fresh Crackers"> <span>FRESH AI ECOSYSTEM</span></div>
+    <h1>Projekt pod kontrolou.<br><em>S Karlem.</em></h1>
+    <h2>Analyzuje chyby. Hlídá souvislosti. Připraví řešení i zadání.</h2>
+    <p>Karel je projektový specialista pro tvoje aplikace a weby. Drží kontext projektu, čte manifesty, pomáhá rozebrat problém a připraví přesný prompt pro další práci v ChatGPT.</p>
+
+    <div class="login-card">
+      <h3>Přihlášení</h3>
+      {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+      <form method="post" action="/login" class="login-form">
+        <label>E-mail<input type="email" name="email" required autocomplete="email"></label>
+        <label>Heslo<input type="password" name="password" required autocomplete="current-password"></label>
+        <button class="btn primary" type="submit">Přihlásit se</button>
+      </form>
+      <small>Karel používá účet Fresh ekosystému a projektový kontext.</small>
+    </div>
+  </div>
+  <div class="login-visual">
+    <div class="visual-frame"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel – AI developer"></div>
+    <div class="karel-caption"><b>Ahoj, já jsem Karel.</b><span>Pomůžu ti zjistit, co je špatně a co s tím dál.</span></div>
+  </div>
+</section>
+{% endblock %}

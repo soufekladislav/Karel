@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <section class="hero-row"><div><div class="eyebrow">Supersprávce</div><h1>Admin konzole</h1><p class="muted">Uživatelé, provoz, server a manifest Karla na jednom místě.</p></div><div class="karel-guide small"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>Karel {{ version }}</b><span>Projektový specialista · coding režim odložen.</span></div></div></section>
+  <div class="admin-stats"><div><b>{{ stats.users }}</b><span>uživatelů</span></div><div><b>{{ stats.projects }}</b><span>projektů</span></div><div><b>{{ stats.messages }}</b><span>zpráv</span></div><div><b>{{ stats.files }}</b><span>souborů</span></div><div><b>{{ stats.library }}</b><span>knihovna</span></div></div>
+  <div class="two-col admin-cols">
+    <div class="card"><div class="section-title"><h3>Provoz serveru</h3><a href="{{ manifest_url }}" target="_blank">manifest.json ↗</a></div><div class="system-list"><div><span>Host</span><b>{{ system.hostname }}</b></div><div><span>Python</span><b>{{ system.python }}</b></div><div><span>DB</span><b>{{ db_driver }}</b></div><div><span>Load 1 / 5 / 15 min</span><b>{{ '%.2f'|format(system.load1) if system.load1 is not none else 'n/a' }} / {{ '%.2f'|format(system.load5) if system.load5 is not none else 'n/a' }} / {{ '%.2f'|format(system.load15) if system.load15 is not none else 'n/a' }}</b></div><div><span>Disk volný</span><b>{{ (system.disk_free/1073741824)|round(1) }} GB</b></div>{% if system.memory_total %}<div><span>RAM volná</span><b>{{ (system.memory_available/1073741824)|round(1) }} / {{ (system.memory_total/1073741824)|round(1) }} GB</b></div>{% endif %}</div></div>
+    <div class="card"><h3>Vytvořit uživatele</h3><form method="post" action="/admin/users" class="form-grid"><label>E-mail<input type="email" name="email" required></label><label>Jméno<input name="name"></label><label>Heslo<input type="password" name="password" required></label><label>Role<select name="role"><option value="user">Uživatel</option><option value="superadmin">Supersprávce</option></select></label><div><button class="btn primary">Vytvořit účet</button></div></form></div>
+  </div>
+
+  <section class="card brain-admin">
+    <div class="section-title"><div><h3>Mozek Karla</h3><p class="muted">Pravidla komunikace, práce se zdroji a workflow typů projektů. Platí globálně pro Karla.</p></div><span class="state-pill active">Aktivní</span></div>
+    <form method="post" action="/admin/brain" class="form-grid">
+      <label>Tón komunikace<input name="tone" value="{{ brain.communication.tone }}" placeholder="stručný, praktický…"></label>
+      <label>Komunikační pravidla<textarea name="rules" rows="6">{{ brain.communication.rules|join('
+') }}</textarea></label>
+      <div class="brain-options">
+        <label class="check"><input type="checkbox" name="proactive" {% if brain.project_guidance.proactive %}checked{% endif %}> Aktivně upozorňovat na chybějící zadání a zdroje</label>
+        <label class="check"><input type="checkbox" name="ask_before_large_work" {% if brain.project_guidance.ask_before_large_work %}checked{% endif %}> Před velkou prací položit max. 2 důležité otázky</label>
+        <label class="check"><input type="checkbox" name="offer_save" {% if brain.project_guidance.offer_save %}checked{% endif %}> Nabízet uložení zadání, rozhodnutí a projektové mapy</label>
+      </div>
+      <div class="form-grid cols3">
+        <label>Odkazy<select name="urls"><option value="auto_resolve" {% if brain.tools.urls=='auto_resolve' %}selected{% endif %}>Automaticky načíst</option><option value="manual" {% if brain.tools.urls=='manual' %}selected{% endif %}>Jen na vyžádání</option></select></label>
+        <label>Soubory<select name="files"><option value="auto_context" {% if brain.tools.files=='auto_context' %}selected{% endif %}>Automaticky vyhodnotit</option><option value="manual" {% if brain.tools.files=='manual' %}selected{% endif %}>Jen na vyžádání</option></select></label>
+        <label>Obrázky<select name="images"><option value="vision_when_supported" {% if brain.tools.images=='vision_when_supported' %}selected{% endif %}>Poslat na vision, pokud je dostupné</option><option value="metadata_only" {% if brain.tools.images=='metadata_only' %}selected{% endif %}>Jen metadata</option></select></label>
+      </div>
+      <div class="brain-workflows">
+        <h4>Typy projektů a workflow</h4>
+        {% for key,item in brain.project_types.items() %}
+        <div class="workflow-edit"><label>Název<input name="label_{{ key }}" value="{{ item.label }}"></label><label>Workflow – jeden krok na řádek<textarea name="workflow_{{ key }}" rows="6">{{ item.workflow|join('
+') }}</textarea></label></div>
+        {% endfor %}
+      </div>
+      <div><button class="btn primary">Uložit mozek Karla</button></div>
+    </form>
+  </section>
+
+  <div class="card"><h3>Správa uživatelů</h3><div class="admin-users">{% for x in users %}<div class="admin-user"><div><b>{{ x.name or x.email }}</b><span>{{ x.email }} · od {{ x.created_at.strftime('%d.%m.%Y') if x.created_at else '—' }}</span></div><form method="post" action="/admin/users/{{ x.id }}/role"><select name="role" {% if x.email=='soufek@freshcrackers.cz' %}disabled{% endif %}><option value="user" {{ 'selected' if x.role!='superadmin' }}>Uživatel</option><option value="superadmin" {{ 'selected' if x.role=='superadmin' }}>Supersprávce</option></select>{% if x.email!='soufek@freshcrackers.cz' %}<button class="btn small">Uložit</button>{% else %}<span class="owner-badge">hlavní supersprávce</span>{% endif %}</form></div>{% endfor %}</div></div>
+</div>
+{% endblock %}

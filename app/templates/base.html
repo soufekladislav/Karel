@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ app_name }}</title>
+  <link rel="icon" href="https://www.freshcrackers.cz/wp-content/uploads/2023/10/Fresh-Crackers-Logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css?v=24">
+</head>
+<body>
+
+{% if user and self.pageclass()|trim != 'project-page project-v2' %}
+<aside class="global-sidebar project-sidebar" aria-label="Hlavní navigace">{% include '_sidebar.html' %}</aside>
+{% endif %}
+{% if user and self.pageclass()|trim != 'project-page project-v2' %}
+<nav class="account-mobile-nav" aria-label="Mobilní navigace"><a href="/">Projekty</a><a href="/library">Knihovna</a><a href="/settings">Nastavení</a><a href="/account">Účet</a></nav>
+{% endif %}
+<main class="page {% block pageclass %}{% endblock %} {% if user and self.pageclass()|trim != 'project-page project-v2' %}with-global-sidebar{% endif %}">{% block content %}{% endblock %}</main>
+<script>
+function toggle(id){const e=document.getElementById(id); if(e) e.classList.toggle('open')}
+function fillPrompt(text){const t=document.querySelector('.composer textarea'); if(!t)return; t.value=text; t.focus();}
+function openEdit(id){const e=document.getElementById(id); if(e) e.classList.toggle('open')}
+</script>
+</body>
+</html>

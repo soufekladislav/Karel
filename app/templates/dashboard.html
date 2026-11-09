@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container dashboard-v2">
+  <section class="dashboard-hero">
+    <div class="dashboard-title"><div class="karel-avatar-lg"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"></div><div><div class="eyebrow">Karel · virtuální projektový pracovník</div><h1>Nástěnka</h1><p class="muted">Přehled projektů, dokumentace a otevřených úkolů.</p></div></div>
+    <button class="btn primary" onclick="toggle('new-project')">+ Nový projekt</button>
+  </section>
+
+  <div id="new-project" class="drawer {% if request.query_params.get('new') %}open{% endif %}">
+    <form method="post" action="/projects" class="card form-grid">
+      <label>Název projektu<input name="name" required placeholder="Např. Karel"></label>
+      <label>Krátký popis<textarea name="description" rows="3" placeholder="Proč projekt vzniká a co má řešit"></textarea></label>
+      <div><button class="btn primary">Vytvořit projekt</button></div>
+    </form>
+  </div>
+
+  {% if request.query_params.get('notice') %}<div class="notice-box">{{ request.query_params.get('notice') }}</div>{% endif %}
+  {% if request.query_params.get('error') %}<div class="error-box">{{ request.query_params.get('error') }}</div>{% endif %}
+
+  <section class="dashboard-summary">
+    <a href="#projekty"><b>{{ projects|length }}</b><span>aktivních projektů</span></a>
+    <a href="#projekty"><b>{{ dashboard_totals.open }}</b><span>otevřených úkolů</span></a>
+    <a href="#projekty"><b>{{ dashboard_totals.testing }}</b><span>v testování</span></a>
+    <a href="/library"><b>▦</b><span>Knihovna účtu</span></a>
+  </section>
+
+  {% if deadline_alerts %}
+  <section class="workflow-shell" aria-label="Upozornění na harmonogram"><div class="workflow-heading"><div><span class="eyebrow">Harmonogram projektů</span><h3>Termíny vyžadující pozornost</h3></div></div>
+    <div class="workflow-alerts">{% for warning in deadline_alerts %}<a class="workflow-warning {% if warning.days < 0 %}late{% endif %}" href="/projects/{{ warning.project.id }}?view=development#workflow"><b>{{ warning.project.name }}</b> · {{ warning.message }}</a>{% endfor %}</div>
+  </section>
+  {% endif %}
+  <div class="section-title-row" id="projekty"><div><div class="eyebrow">Projekty</div><h2>Tvoje projekty</h2></div></div>
+  <div class="project-overview-list">
+    {% for item in dashboard_projects %}{% set p=item.project %}{% set spec=item.spec %}
+    <article class="project-overview-card">
+      <a class="project-overview-main" href="/projects/{{ p.id }}">
+        <div class="project-icon">{{ p.name[:1]|upper }}</div>
+        <div class="project-overview-copy"><div class="project-title-line"><h3>{{ p.name }}</h3>{% if spec.project_type %}<span class="mini-tag">{{ spec.project_type }}</span>{% endif %}</div><p>{{ p.description or 'Projekt zatím nemá popis.' }}</p>
+          <div class="project-meta-row"><span><b>{{ item.open }}</b> otevřených úkolů</span><span><b>{{ item.counts.working }}</b> ve vývoji</span><span><b>{{ item.counts.testing }}</b> v testování</span>{% if spec.project_deadline %}<span class="deadline">Termín: <b>{{ spec.project_deadline }}</b></span>{% endif %}</div>
+        </div>
+      </a>
+      <div class="project-overview-actions"><a class="icon-action" href="/projects/{{ p.id }}?view=development" title="Projektová mapa">🗺</a><a class="icon-action" href="/projects/{{ p.id }}?view=tasks" title="Úkoly">✓</a><a class="icon-action primary-icon" href="/projects/{{ p.id }}?view=chat" title="Chat s Karlem">💬</a><form method="post" action="/projects/{{ p.id }}/archive" onsubmit="return confirm('Archivovat projekt {{ p.name }}?')"><input type="hidden" name="archived" value="1"><button class="icon-action" title="Archivovat projekt">▣</button></form></div>
+    </article>
+    {% else %}<div class="empty-state"><h3>Zatím bez projektů</h3><p>Vytvoř první projekt. Karel pak bude držet jeho zadání, komunikaci, úkoly a historii.</p></div>{% endfor %}
+  </div>
+  {% if archived_projects %}<section class="archived-projects"><button class="btn secondary small" type="button" onclick="toggle('archived-project-list')">▣ Archiv projektů ({{ archived_projects|length }})</button><div id="archived-project-list" class="drawer"><div class="archive-list">{% for p in archived_projects %}<div class="archive-row"><a href="/projects/{{ p.id }}?view=settings"><b>{{ p.name }}</b><span>{{ p.description or 'Bez popisu' }}</span></a><div class="row-actions"><form method="post" action="/projects/{{ p.id }}/archive"><input type="hidden" name="archived" value="0"><button class="icon-action mini" title="Obnovit projekt">↺</button></form><form method="post" action="/projects/{{ p.id }}/delete" onsubmit="return confirm('Opravdu trvale smazat projekt {{ p.name }}?')"><button class="icon-action mini danger" title="Trvale smazat projekt">⌫</button></form></div></div>{% endfor %}</div></div></section>{% endif %}
+</div>
+{% endblock %}

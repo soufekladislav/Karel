@@ -1,0 +1,37 @@
+{# Unified account/project navigation. Used by all authenticated screens. #}
+<a class="side-brand karel-brand" href="/" aria-label="Karel – nástěnka projektů"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><span><strong>Karel</strong><small>Projektová inteligence</small></span></a>
+<div class="side-group-label">PROJEKTY</div>
+<label for="global-project-switch" class="sr-only">Vybrat aktivní projekt</label>
+<select class="unified-switch" id="global-project-switch" onchange="if(this.value)window.location.assign(this.value)">
+  <option value="/" {% if not project %}selected{% endif %}>Všechny projekty</option>
+  {% for entry in sidebar_projects %}<option value="/projects/{{ entry.id }}?view=chat" {% if project and entry.id==project.id %}selected{% endif %}>{{ entry.name }}{% if entry.status=='archived' %} (archiv){% endif %}</option>{% endfor %}
+</select>
+<div class="side-project-links"><a href="/">Seznam projektů</a><a href="/?new=1">+ Nový projekt</a></div>
+<nav class="project-menu unified-menu" aria-label="Pracovní navigace">
+  <a href="/" class="{% if not project and request.url.path=='/' %}active{% endif %}"><span>▦</span><b>Nástěnka projektů</b></a>
+  {% if project %}
+    <div class="side-group-label unified-project-name" title="{{ project.name }}">{{ project.name }}</div>
+    <a class="{% if view=='chat' %}active{% endif %}" href="/projects/{{ project.id }}?view=chat"><span>◉</span><b>Chat s Karlem</b></a>
+    <a class="{% if view=='development' %}active{% endif %}" href="/projects/{{ project.id }}?view=development"><span>▦</span><b>Přehled projektu</b></a>
+    <a class="{% if view=='docs' %}active{% endif %}" href="/projects/{{ project.id }}?view=docs"><span>▤</span><b>Zadání a dokumentace</b></a>
+    <a class="{% if view=='tasks' %}active{% endif %}" href="/projects/{{ project.id }}?view=tasks"><span>✓</span><b>Úkoly</b><small>{{ task_counts.todo + task_counts.working + task_counts.testing + task_counts.waiting_user + task_counts.failed }} otevřených</small></a>
+    <details class="menu-details" {% if view in ['components','releases','testing','outputs','history','files'] %}open{% endif %}><summary>Vývoj a historie</summary>
+      <a class="{% if view=='components' %}active{% endif %}" href="/projects/{{ project.id }}?view=components"><b>Komponenty</b><em>Ve vývoji</em></a>
+      <a class="{% if view=='releases' %}active{% endif %}" href="/projects/{{ project.id }}?view=releases"><b>Release</b><em>Ve vývoji</em></a>
+      <a class="{% if view=='testing' %}active{% endif %}" href="/projects/{{ project.id }}?view=testing"><b>Testování</b><em>Ve vývoji</em></a>
+      <a class="{% if view=='files' %}active{% endif %}" href="/projects/{{ project.id }}?view=files"><b>Soubory</b></a>
+      <a class="{% if view=='outputs' %}active{% endif %}" href="/projects/{{ project.id }}?view=outputs"><b>Výstupy</b></a>
+      <a class="{% if view=='history' %}active{% endif %}" href="/projects/{{ project.id }}?view=history"><b>Historie</b></a>
+    </details>
+    <a class="{% if view=='settings' %}active{% endif %}" href="/projects/{{ project.id }}?view=settings"><span>⚙</span><b>Nastavení projektu</b></a>
+  {% endif %}
+</nav>
+<div class="sidebar-library unified-general-links">
+  <a href="/library" class="{% if request.url.path=='/library' %}active{% endif %}"><span>▦</span><div><b>Knihovna účtu</b>{% if library_count is defined %}<small>{{ library_count }} položek</small>{% endif %}</div></a>
+  <a href="/settings" class="unified-secondary {% if request.url.path=='/settings' %}active{% endif %}"><span>⚙</span><div><b>Nastavení a integrace</b></div></a>
+  <a href="/account" class="unified-secondary {% if request.url.path=='/account' %}active{% endif %}"><span>◉</span><div><b>Můj účet</b></div></a>
+</div>
+<div class="side-bottom unified-bottom">
+  {% if user.role=='superadmin' or user.email=='soufek@freshcrackers.cz' %}<a href="/admin" class="{% if request.url.path=='/admin' %}active{% endif %}">⚙ Superadmin konzole</a>{% endif %}
+  <a href="/logout" class="side-logout">Odhlásit</a>
+</div>
