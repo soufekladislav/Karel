@@ -1,3 +1,15 @@
+# Karel – projektový manažer a orchestrátor vývoje
+
+**Aktualizované produktové zadání (návrh ke schválení):**
+- [Produktová specifikace](docs/PRODUCT_SPECIFICATION.md) – cíle, role, požadavky R1–R10 a kritéria přijetí.
+- [Architektura a synchronizace](docs/ARCHITECTURE_AND_SYNCHRONIZATION.md) – GitHub jako zdroj pravdy, řízená fronta, kontext a schvalování.
+- [Realizační plán](docs/IMPLEMENTATION_PLAN.md) – etapy P0–P5 a testovací brány.
+- [AGENTS.md](AGENTS.md) – pravidla pro Codex/AI vývojáře.
+
+**Rozlišení stavů:** současný kód obsahuje lokální projektové funkce a Fresh AI Engine; nové GitHub synchronizace, plánování přes GitHub Projects a Codex fronta jsou **požadavky na vývoj**, nikoli dokončené funkce. Nasazenou produkci je nutné nejprve porovnat s GitHub verzí. Níže je zachován původní README pro historický alpha.24 import.
+
+---
+
 # Karel 2.0 – Clean Workspace (alpha.24)
 
 Kompletní zdrojová verze aplikace určená k čistému nasazení se zachováním existujících dat.
