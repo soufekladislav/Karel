@@ -4,6 +4,8 @@ Toto je plán požadavků, ne potvrzení hotových funkcí. Nedělat vše v jedn
 
 ## P0 – Sjednotit zdroj pravdy a audit [nejvyšší priorita]
 - [ ] Porovnat nasazenou aplikaci, manifest, skutečný DB schema a HEAD GitHubu; zaznamenat rozpory, rizika migrace, existující uživatelská data a verzování.
+- [ ] Bezpečnostní kontrola: veřejný repozitář obsahuje storage/karel2.db a storage/uploads; ověřit, zda jde jen o neškodná testovací data. Pokud ne, řešit bezpečné odstranění z historie a případnou rotaci uniklých tajemství. Nesmazat bez zálohy a bez schválení.
+- [ ] Sladit neshodu mezi sedmi etapami v app/services/workflow.py a šesti položkami pro app_development v storage/brain.json.
 - [ ] Sjednotit README, verzi a status dokumentace; zachovat historii alpha release.
 - [ ] Definovat datové kontrakty mezi GitHubem, projektem Karel a knihovnou, bez duplikace původních Issues.
 - **Akceptace:** audit zobrazí doložené důkazy, seznam rozdílů a nulové změny uživatelských dat.
