@@ -79,6 +79,57 @@ class PortfolioTemplateTests(unittest.TestCase):
         self.assertIn("/projects/2?view=tasks", html)
         self.assertIn("karel-project-card", html)
 
+    def test_github_unlinked_never_claims_zero_issues(self):
+        env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")),
+                          autoescape=True)
+        env.filters["message_md"] = lambda text: text
+        project = SimpleNamespace(id=2, name="Developer Karel", status="active")
+        user = SimpleNamespace(email="test@example.com", role="viewer")
+        values = dict(
+            app_name="Karel", request=SimpleNamespace(url=SimpleNamespace(path="/projects/2/github")),
+            user=user, project=project, sidebar_projects=[project], view="github",
+            link=None, snapshot={}, github_status=github_connection_state(None, True),
+            can_manage=False, can_edit=False, github_allowed=True,
+            notice="", error="", active_chat=None, recent_messages=[],
+        )
+        html = env.get_template("github.html").render(**values)
+        self.assertIn("Nepřipojeno", html)
+        self.assertIn("Repozitář není přiřazen", html)
+        self.assertNotIn("načtených Issues", html)
+        self.assertNotIn("Žádná Issues ve staženém snímku", html)
+
+    def test_github_synced_renders_actual_snapshot_counts(self):
+        env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")),
+                          autoescape=True)
+        env.filters["message_md"] = lambda text: text
+        project = SimpleNamespace(id=2, name="Developer Karel", status="active")
+        user = SimpleNamespace(email="test@example.com", role="viewer")
+        snapshot = {
+            "repository": "owner/Karel", "html_url": "https://github.com/owner/Karel",
+            "counts": {"issues_loaded": 19, "open_issues": 7, "prs_loaded": 3,
+                       "open_prs": 1, "projects_loaded": 0, "workflow_runs": 4},
+            "partial": {"issues": False}, "issues": [], "pull_requests": [],
+            "projects_v2": [], "projects_v2_status": "requires_token",
+            "actions_status": "ok", "default_branch": "main", "last_push_at": "",
+            "workflow_runs": [], "documentation_paths": [],
+        }
+        link = repo_link(last_synced_at=None)
+        link.repository_full_name = "owner/Karel"
+        status = github_connection_state(repo_link(
+            last_synced_at="now",
+            snapshot_json='{"repository":"owner/Karel","counts":{}}'), True)
+        html = env.get_template("github.html").render(
+            app_name="Karel", request=SimpleNamespace(url=SimpleNamespace(path="/projects/2/github")),
+            user=user, project=project, sidebar_projects=[project], view="github",
+            link=link, snapshot=snapshot, github_status=status, can_manage=False, can_edit=False,
+            github_allowed=True, notice="", error="", active_chat=None, recent_messages=[],
+        )
+        self.assertIn("Synchronizováno", html)
+        self.assertIn("19", html)
+        self.assertIn("7", html)
+        self.assertIn("načtených Issues", html)
+        self.assertIn("uložený snímek", html)
+
     def test_empty_portfolio_has_real_onboarding(self):
         env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")),
                           autoescape=True)
