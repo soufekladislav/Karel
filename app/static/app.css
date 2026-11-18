@@ -353,3 +353,17 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
   .karel-deadline-list a{display:block}
   .karel-project-status-row{padding-bottom:10px}
 }
+
+/* Accessibility refinement: readable Poppins text without shrinking dense controls. */
+.project-v2 .content-view .view-head p,.project-v2 .content-view .fresh-detail-body p{font-size:14px;line-height:1.7}
+.project-v2 .content-view label{font-size:14px}
+.project-v2 .content-view input,.project-v2 .content-view select,.project-v2 .content-view textarea{font-size:15px}
+.karel-quick-text,.karel-quick-text p,.karel-quick-empty{font-size:13px;line-height:1.65}
+.karel-primary-menu>a b{font-size:14px}
+.karel-project-title h3{font-size:18px}
+.karel-project-goal p{font-size:15px}
+@media(max-width:760px){
+  .karel-primary-menu>a b{font-size:14px}
+  .karel-project-title h3{font-size:17px}
+  .karel-project-goal p{font-size:14px}
+}
