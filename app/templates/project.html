@@ -81,13 +81,8 @@
 
     {% elif view == 'github' %}
     <div class="content-view fresh-clean">
-      <header class="view-head"><div><div class="eyebrow">Projektové zdroje</div><h2>GitHub</h2>
-        <p>Repozitáře, Issues, Pull Requesty, projektové boardy a synchronizace budou přístupné z jedné obrazovky.</p></div></header>
-      <section class="settings-block">
-        <h3>GitHub konektor se připravuje</h3>
-        <p>Čtecí import existuje v rozpracovaném <a href="https://github.com/soufekladislav/Karel/pull/3" target="_blank" rel="noopener noreferrer">PR #3</a>, ale zatím není schválený ani nasazený. Žádná externí data se na této obrazovce nepředstírají.</p>
-        <p>Po otestování zde bude stav připojení, čas synchronizace a mapování Issues na projekty a jejich pipeline.</p>
-      </section>
+      <header class="view-head"><div><div class="eyebrow">Projektové zdroje</div><h2>GitHub</h2><p>GitHub má vlastní aktuální obrazovku se stavem připojení a posledním snímkem dat.</p></div></header>
+      <a class="btn primary" href="/projects/{{ project.id }}/github">Otevřít GitHub projektu</a>
     </div>
     {% elif view == 'docs' %}
     <div class="content-view fresh-clean"><header class="view-head"><div><div class="eyebrow">Projektová dokumentace</div><h2>Zadání a dokumentace</h2><p>Tady je hlavní zdroj pravdy pro projekt. Přehled projektu zobrazuje pouze stručné souhrny a harmonogram.</p></div></header>
