@@ -72,7 +72,7 @@
     </div>
     <aside class="karel-context-panel" aria-label="Pracovní panel projektu">
       <div class="context-panel-head"><strong>Pracovní panel</strong><small>Souvislosti k aktuálnímu projektu</small></div>
-      <details class="context-card" open><summary><span>STAV PROJEKTU</span><b>Detail ›</b></summary><div class="context-card-body"><strong>{{ project.name }}</strong><p>{{ project.description or 'Zatím bez krátkého popisu.' }}</p><div class="context-metrics"><div><b>{{ task_counts.todo + task_counts.working + task_counts.testing }}</b><span>Otevřené</span></div><div><b>{{ task_counts.testing }}</b><span>Testování</span></div></div><a href="/projects/{{ project.id }}?view=development">Otevřít projektovou mapu →</a></div></details>
+      <details class="context-card" open><summary><span>STAV PROJEKTU</span><b>Detail ›</b></summary><div class="context-card-body"><strong>{{ project.name }}</strong><p>{{ project_goal_preview }}</p><div class="context-metrics"><div><b>{{ task_counts.todo + task_counts.working + task_counts.testing }}</b><span>Otevřené</span></div><div><b>{{ task_counts.testing }}</b><span>Testování</span></div></div><a href="/projects/{{ project.id }}?view=development">Otevřít projektovou mapu →</a></div></details>
       <details class="context-card"><summary><span>DOKUMENTACE</span><b>Otevřít ›</b></summary><div class="context-card-body"><div class="context-metrics"><div><b>{{ document_memories|length }}</b><span>Záznamy</span></div><div><b>{{ manifests|length }}</b><span>Manifesty</span></div></div><p>Projektová paměť a uložené manifesty.</p><a href="/projects/{{ project.id }}?view=docs">Projektová dokumentace →</a></div></details>
       <details class="context-card"><summary><span>ÚKOLY</span><b>Otevřít ›</b></summary><div class="context-card-body"><div class="context-metrics"><div><b>{{ task_counts.working }}</b><span>Ve vývoji</span></div><div><b>{{ task_counts.done }}</b><span>Dokončeno</span></div></div><a href="/projects/{{ project.id }}?view=tasks">Přejít na úkoly →</a></div></details>
       <details class="context-card"><summary><span>ZDROJE A SOUBORY</span><b>Otevřít ›</b></summary><div class="context-card-body"><strong>{{ files|length }} evidovaných souborů</strong><p>Podklady a přílohy projektu. Automatická analýza ZIP zatím není dostupná.</p><a href="/projects/{{ project.id }}?view=files">Zobrazit soubory →</a></div></details>
@@ -105,9 +105,27 @@
     <div class="content-view fresh-clean"><header class="view-head"><div><div class="eyebrow">Ověřování</div><h2>Testování <span class="fresh-dev">Ve vývoji</span></h2><p>Samostatné testovací scénáře a výsledky zatím nejsou implementované.</p></div></header><div class="fresh-summary"><strong>Úkoly ve stavu testování</strong><span>{{ task_counts.testing }} položek</span><a href="/projects/{{ project.id }}?view=tasks" class="btn secondary small">Otevřít úkoly</a></div><details class="fresh-detail"><summary>Budoucí testovací protokoly</summary><div class="fresh-detail-body">Testovací scénáře, kontrolní body, výsledek, odpovědná osoba, vazba na release a regresní testy. Stav úkolu „V testování“ zatím neznamená, že test proběhl.</div></details></div>
     {% elif view == 'development' %}
     <div class="content-view" id="project-map">
-      <header class="view-head"><div><div class="eyebrow">Pracovní nástěnka</div><h2>Přehled projektu</h2><p>Jedno místo pro stav projektu, workflow, termíny a poslední aktivitu. Plné zadání zůstává v dokumentaci.</p></div><div class="view-head-actions"><a class="btn secondary" href="/projects/{{ project.id }}?view=docs">Zadání a dokumentace</a><a class="btn primary" href="/projects/{{ project.id }}?view=chat">Probrat v chatu</a></div></header>
+      <header class="view-head"><div><div class="eyebrow">ŘÍZENÍ PROJEKTU</div><h2>{{ project.name }}</h2><p>Obchodní cíl, aktuální stav a jeden další krok. Podrobné zadání zůstává v dokumentaci.</p></div><div class="view-head-actions"><a class="btn secondary" href="/projects/{{ project.id }}?view=docs">Zadání</a><a class="btn primary" href="/projects/{{ project.id }}?view=chat">Probrat s Karlem</a></div></header>
 
-      <section class="workboard-intro"><div><strong>{{ project.name }}</strong><p>{{ project.description or 'Projekt čeká na úvodní zadání.' }}</p></div><div class="intro-mini-meta"><span>{% if project_spec.get('project_type') %}{{ project_spec.get('project_type') }}{% else %}Typ projektu nevyplněn{% endif %}</span><span>{% if project_spec.get('project_deadline') %}Cílový termín: {{ project_spec.get('project_deadline') }}{% else %}Bez cílového termínu{% endif %}</span></div></section>
+      <section class="karel-project-focus" aria-label="Co se právě řeší">
+        <div class="karel-focus-goal">
+          <span class="karel-focus-label">Obchodní cíl</span>
+          <p>{{ project_goal_preview }}</p>
+          <a class="karel-text-link" href="/projects/{{ project.id }}?view=docs">Otevřít celé zadání →</a>
+        </div>
+        <div class="karel-focus-next {% if project_focus.kind == 'attention' %}is-attention{% endif %}">
+          <span class="karel-focus-label">Nejbližší krok</span>
+          <h3>{{ project_focus.label }}</h3>
+          <a class="btn primary small" href="/projects/{{ project.id }}{% if project_focus.href == 'github' %}/github{% else %}?view={{ project_focus.href }}{% endif %}">Přejít ke kroku →</a>
+        </div>
+      </section>
+      <div class="karel-project-status-row">
+        <span>{% if project_spec.get('project_type') %}{{ project_spec.get('project_type') }}{% else %}Typ projektu neuveden{% endif %}</span>
+        <span>{{ task_counts.todo + task_counts.working + task_counts.testing + task_counts.waiting_user + task_counts.failed }} otevřených úkolů</span>
+        {% if task_counts.waiting_user %}<a class="is-attention" href="/projects/{{ project.id }}?view=tasks">{{ task_counts.waiting_user }} čeká na tebe →</a>{% endif %}
+        <a href="/projects/{{ project.id }}/github" class="karel-status-pill {{ github_status.kind }}" title="{{ github_status.detail }}">GitHub: {{ github_status.label }}</a>
+        {% if project_spec.get('project_deadline') %}<span>Cílový termín: {{ project_spec.get('project_deadline') }}</span>{% endif %}
+      </div>
 
       <div class="workboard-grid project-summary-grid">
         <section class="workboard-card"><div class="workboard-card-top"><b>Workflow projektu</b><a href="#workflow">7 etap →</a></div><div class="workboard-number">{{ stages|selectattr('status','equalto','completed')|list|length }}/7 <small>dokončeno</small></div><div class="workboard-stats">{% set active_stages = stages|selectattr('status','equalto','active')|list %}{% if active_stages %}Aktuálně řešíš: {{ active_stages[0].title }}{% else %}Zatím není označena aktivní etapa{% endif %}</div></section>
@@ -116,10 +134,7 @@
         <section class="workboard-card"><div class="workboard-card-top"><b>Verze a výstupy</b><a href="/projects/{{ project.id }}?view=outputs">Výstupy →</a></div><div class="workboard-number">{{ outputs|length }} <small>výstupů</small></div><div class="workboard-stats">Release workflow zůstává oddělené. Uložené ZIPy samy o sobě nejsou potvrzené release.</div></section>
       </div>
 
-      <div class="workboard-grid project-summary-grid secondary-grid">
-        <section class="workboard-card compact-copy"><div class="workboard-card-top"><b>Hlavní zadání</b><a href="/projects/{{ project.id }}?view=docs">Upravit →</a></div><p>{{ project_spec.get('functional_goal') or 'Zatím není doplněno hlavní funkční zadání.' }}</p></section>
-        <section class="workboard-card compact-copy"><div class="workboard-card-top"><b>Rozsah projektu</b><a href="/projects/{{ project.id }}?view=docs">Otevřít →</a></div><p>{{ project_spec.get('project_scope') or 'Rozsah projektu zatím není vyplněn.' }}</p></section>
-      </div>
+      <div class="karel-scope-brief"><div><b>Rozsah projektu</b><p>{{ project_scope_preview }}</p></div><a class="karel-text-link" href="/projects/{{ project.id }}?view=docs">Detail v dokumentaci →</a></div>
 
 <section id="workflow" class="workflow-shell compact-workflow">
   <div class="workflow-heading"><div><span class="eyebrow">FRESH DEVELOPMENT STANDARD</span><h3>Projektové workflow · 7 etap</h3><p>Každá etapa má vlastní termín, očekávaný výsledek a podmínky převzetí. Zadání zůstává v dokumentaci, tady řídíme postup a harmonogram.</p></div><a class="btn secondary small" href="/projects/{{ project.id }}?view=chat">Probrat harmonogram v chatu →</a></div>
