@@ -18,6 +18,8 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
+      - name: Ensure no runtime storage is tracked
+        run: test -z "$(git ls-files storage)"
       - name: Compile source
         run: python -m compileall -q app tests
       - name: Security regression
