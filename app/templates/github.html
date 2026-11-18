@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% block pageclass %}project-page project-v2{% endblock %}
 {% block content %}
-<div class="project-app">
+<div class="project-app with-context-chat">
   <aside class="project-sidebar">{% include '_sidebar.html' %}</aside>
   <section class="project-content">
     <div class="container">
@@ -67,5 +68,24 @@
       {% endif %}
     </div>
   </section>
+  <aside class="karel-quick-panel" id="karel-assistant" aria-label="Chat Karla nad GitHubem">
+    <div class="karel-quick-header"><div><strong>Chat s Karlem</strong><small>Projekt: {{ project.name }} · zdroj: GitHub</small></div><a href="/projects/{{ project.id }}?view=chat">Celý chat ↗</a></div>
+    <div class="karel-quick-messages">
+      {% for m in recent_messages %}
+      <div class="karel-quick-message {% if m.role=='user' %}from-user{% endif %}">
+        <b>{% if m.role=='assistant' %}Karel{% else %}Ty{% endif %}</b>
+        <div class="karel-quick-text">{{ m.content|truncate(550)|message_md|safe }}</div>
+      </div>
+      {% else %}<p class="karel-quick-empty">Můžeš se zeptat na stav repozitáře, Issues i poslední synchronizaci.</p>{% endfor %}
+    </div>
+    {% if can_edit and active_chat %}
+    <form class="karel-quick-form" method="post" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/send">
+      <input type="hidden" name="return_view" value="github">
+      <label for="gh-chat-msg" class="sr-only">Dotaz pro Karla</label>
+      <textarea id="gh-chat-msg" name="message" rows="3" required placeholder="Zeptej se na GitHub projekt…"></textarea>
+      <div class="karel-quick-form-actions"><span>Kontext: GitHub</span><button type="submit" class="btn primary small">Odeslat</button></div>
+    </form>
+    {% endif %}
+  </aside>
 </div>
 {% endblock %}
