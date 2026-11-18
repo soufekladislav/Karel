@@ -22,6 +22,7 @@ class Settings:
     engine_mode = os.getenv('FRESH_AI_ENGINE_MODE', 'fresh').lower()
     engine_timeout = int(os.getenv('FRESH_AI_ENGINE_TIMEOUT', '180'))
     engine_retries = int(os.getenv('FRESH_AI_ENGINE_RETRIES', '3'))
+    manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()
     max_upload_mb = int(os.getenv('MAX_UPLOAD_MB', '100'))
     https_only = os.getenv('SESSION_HTTPS_ONLY', 'true').lower() in ('1','true','yes','on')
     storage_dir = BASE_DIR / 'storage'
