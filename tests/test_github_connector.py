@@ -77,6 +77,14 @@ class GitHubReadTests(unittest.TestCase):
         self.assertEqual(snap["projects_v2_status"], "unavailable")
         self.assertEqual(snap["projects_v2"], [])
 
+    def test_github_template_is_valid_jinja(self):
+        from pathlib import Path
+        from jinja2 import Environment, FileSystemLoader
+        root = Path(__file__).resolve().parents[1] / "app" / "templates"
+        env = Environment(loader=FileSystemLoader(str(root)))
+        template = env.get_template("github.html")
+        self.assertIn("github/sync", (root / "github.html").read_text(encoding="utf-8"))
+
     def test_upsert_snapshot_twice_keeps_one_link_and_no_local_tasks(self):
         from sqlalchemy import create_engine, select, func
         from sqlalchemy.orm import Session
