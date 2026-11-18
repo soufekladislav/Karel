@@ -14,7 +14,7 @@ Nenasazovat tento PR do produkce bez zálohy, staging testů a zvláštního sch
 - DOCX reader nyní omezuje rozbalenou velikost `word/document.xml`.
 
 ## Nevyřešeno / vyžaduje vlastníka serveru
-1. **P0 – historie Git:** zálohovat produkční data, bezpečně klasifikovat verzi veřejně sledovaných souborů bez posílání obsahu do Issue. Pokud šlo o skutečná data nebo tajemství, rozhodnout o rotaci a o čištění Git historie. Nemazat produkční `storage/` ani automaticky nepřepisovat Git historii.
+1. **P0 – historie Git:** vlastník označil soubory v repozitářovém `storage/` za čistě testovací a povolil jejich odstranění z aktuálního indexu. Staré commity však zůstávají dostupné a v případě podezření na tajemství/osobní data je nezbytné samostatné rozhodnutí o rotaci a čištění historie. Produkční `storage/` se nesmí bez zvláštního schválení mazat.
 2. **P0 – produkce:** porovnat HEAD kódu, DB driver a schéma, `/healthz` a přístupný (autorizovaný) `/manifest.json` na skutečné doméně, Passenger log a zálohy. Auditní skript v draft PR #3 je určen pouze pro následné read-only použití na serveru.
 3. **P0 – konfigurace:** do produkčního `.env` doplnit důvěryhodné přesné manifest hosty a ověřit `APP_SECRET` (silný náhodný klíč), `SESSION_HTTPS_ONLY`, DB oprávnění, web-root, práva filesystemu a dostupnost příloh mimo URL.
 4. **P1 – další obrana:** pro obecné URL ze zpráv doplnit ochranu před DNS rebindingem a streaming cap na response body; auditovat CSRF pro změnové POST routy. DNS kontrola sama o sobě nezaručuje ochranu před závodem mezi validací a připojením.
@@ -27,3 +27,6 @@ Nenasazovat tento PR do produkce bez zálohy, staging testů a zvláštního sch
 - Produkce: až po ověření zálohy, stagingu, konfigurace a skutečných dat potvrdit nasazení. Automatické tvrzení o otestované produkci je zakázáno.
 
 Navazuje na #4 a #5. Bez serverového přístupu zůstávají otevřené.
+
+## Potvrzení vlastníka 18. 11. 2026
+Vlastník projektu výslovně potvrdil, že **všechny soubory v historickém Git repozitářovém `storage/` byly pouze testovací a nemají použitelná data**; povolil jejich odstranění z aktivně verzovaných souborů. Nešlo o technickou kontrolu obsahu a tento záznam není důkazem, že staré Git commity nikdy neobsahovaly citlivé údaje. Odstranění obsahu z aktuální větve nemění starší historii, která stále vyžaduje oddělené rozhodnutí, pokud má být smazána. Tato změna se **netýká storage skutečně běžící produkční aplikace ani dat na serveru**. 
