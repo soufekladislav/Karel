@@ -5,24 +5,44 @@
   <aside class="project-sidebar">{% include '_sidebar.html' %}</aside>
   <section class="project-content">
     <div class="container">
-      <header class="view-head"><div><div class="eyebrow">Projekt · integrace</div>
-        <h1>GitHub – import a synchronizace</h1>
-        <p>Pouze čtení. GitHub je zdrojem pravdy; Karel ukládá časově označený snímek. Import nemění Issues ani Projects.</p>
+      <header class="view-head"><div><div class="eyebrow">ZDROJ PROJEKTU · POUZE ČTENÍ</div>
+        <h1>GitHub</h1>
+        <p>Repozitář, otevřené požadavky, Pull Requesty a stav testů. Karel zatím GitHub pouze načítá, nic do něj nezapisuje.</p>
       </div></header>
       {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
       {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
-      <div class="fresh-summary">
-        <strong>{{ link.repository_full_name if link else 'Repozitář zatím není připojen' }}</strong>
-        <span>Poslední úspěšná synchronizace: {{ link.last_synced_at.strftime('%d.%m.%Y %H:%M UTC') if link and link.last_synced_at else 'neproběhla' }}</span>
-        {% if link and snapshot.get('html_url') %}<a href="{{ snapshot.html_url }}" target="_blank" rel="noopener noreferrer">Otevřít GitHub</a>{% endif %}
-      </div>
-      {% if link and link.last_error %}<div class="project-alert error">Poslední chyba: {{ link.last_error }}</div>{% endif %}
+      <section class="karel-github-connection {{ github_status.kind }}" aria-live="polite">
+        <div class="karel-github-connection-top">
+          <span class="karel-status-pill {{ github_status.kind }}">{{ github_status.label }}</span>
+          {% if link and link.last_synced_at %}<span class="karel-github-time">Poslední úspěšné načtení: {{ link.last_synced_at.strftime('%d.%m.%Y %H:%M UTC') }}</span>{% endif %}
+        </div>
+        <h2>{{ link.repository_full_name if link else 'Repozitář není přiřazen' }}</h2>
+        <p>{{ github_status.detail }}</p>
+        {% if link and snapshot.get('html_url') %}
+        <a class="karel-text-link" href="{{ snapshot.get('html_url') }}" target="_blank" rel="noopener noreferrer">Otevřít repozitář na GitHubu ↗</a>
+        {% endif %}
+        {% if github_status.kind == 'setup' %}
+        <div class="karel-github-next"><b>Jak pokračovat</b>
+          <p>Správce musí na serveru nastavit <code>GITHUB_ALLOWED_OWNERS</code> a podle potřeby čtecí GitHub token. Token nikdy nevkládej do formuláře ani chatu.</p>
+        </div>
+        {% elif github_status.kind == 'unlinked' %}
+        <div class="karel-github-next"><b>Jak pokračovat</b><p>Superadministrátor níže přiřadí repozitář. Úkoly ani GitHub Issues se tím nepřepisují.</p></div>
+        {% elif github_status.kind == 'error' %}
+        <div class="karel-github-next"><b>Jak pokračovat</b><p>Prověř přístup k repozitáři a spusť nové načtení. Údaje níže mohou pocházet ze staršího snímku.</p></div>
+        {% elif github_status.kind == 'pending' %}
+        <div class="karel-github-next"><b>Jak pokračovat</b><p>Spusť první synchronizaci. Bez úspěšného načtení nelze počet Issues ani PR potvrdit.</p></div>
+        {% endif %}
+      </section>
+      {% if link and link.last_error %}
+      <div class="project-alert error" role="alert">Poslední chyba načtení: {{ link.last_error }}</div>
+      {% endif %}
       {% if can_manage and github_allowed %}
-      <div class="fresh-detail-body">
+      <div class="karel-github-sync-panel">
+        <h3>{% if link %}Obnovit snímek repozitáře{% else %}Připojit repozitář{% endif %}</h3>
         <form method="post" action="/projects/{{ project.id }}/github/sync">
           <label>Vlastník/repozitář <input name="repository" maxlength="201" value="{{ link.repository_full_name if link else '' }}" placeholder="soufekladislav/Karel" required></label>
           <p>Pro privátní repozitáře musí správce nastavit serverový token jen pro čtení; nikdy jej nezadávej do formuláře.</p>
-          <button class="btn primary" type="submit">Načíst / synchronizovat z GitHubu</button>
+          <button class="btn primary" type="submit">{% if link %}Načíst aktuální stav{% else %}Připojit a načíst{% endif %}</button>
         </form>
       </div>
       {% elif can_manage %}
@@ -30,11 +50,18 @@
       {% else %}
         <p>Připojení repozitáře a synchronizaci může v této verzi provést pouze superadministrátor.</p>
       {% endif %}
-      {% if link and snapshot %}
-      <div class="fresh-summary">
-        <strong>Importované záznamy</strong>
-        <span>{{ snapshot.counts.issues_loaded }} Issues · {{ snapshot.counts.prs_loaded }} PR · {{ snapshot.counts.projects_loaded }} GitHub Projects · {{ snapshot.counts.workflow_runs }} běhů CI</span>
-      </div>
+      {% if link and snapshot and github_status.kind in ('synced','error') %}
+      <section class="karel-github-metrics" aria-label="Počty ze snímku GitHubu">
+        <div><strong>{{ snapshot.counts.issues_loaded }}</strong><span>načtených Issues</span></div>
+        <div><strong>{{ snapshot.counts.open_issues }}</strong><span>otevřených Issues</span></div>
+        <div><strong>{{ snapshot.counts.prs_loaded }}</strong><span>načtených PR</span></div>
+        <div><strong>{{ snapshot.counts.workflow_runs }}</strong><span>běhů CI</span></div>
+      </section>
+      {% if github_status.kind == 'error' %}
+      <p class="karel-snapshot-disclaimer">Zobrazená čísla jsou z posledního dostupného snímku; poslední obnovení selhalo.</p>
+      {% else %}
+      <p class="karel-snapshot-disclaimer">Jde o poslední uložený snímek, ne o živou průběžnou synchronizaci. Při omezeném importu mohou být počty neúplné.</p>
+      {% endif %}
       <details class="fresh-detail" open><summary>Issues <span>{{ snapshot.counts.open_issues }} otevřených</span></summary>
         <div class="fresh-detail-body">
           {% for issue in snapshot.issues %}
@@ -65,6 +92,8 @@
           <p>Dokumentace v repozitáři: {{ snapshot.documentation_paths|length }} nalezených cest.</p>
         </div>
       </details>
+      {% elif github_status.kind == 'pending' %}
+      <div class="karel-empty-state"><h3>Zatím nejsou načtená žádná GitHub data</h3><p>Po první úspěšné synchronizaci se zobrazí Issues, Pull Requesty, Projects a CI.</p></div>
       {% endif %}
     </div>
   </section>
