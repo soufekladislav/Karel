@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from app.config import settings
 from app.main import healthz
-from app.services.source_resolver import require_allowed_manifest_host, _validate_public_url, fetch_public_manifest
+from app.services.source_resolver import require_allowed_manifest_host, _validate_public_url, fetch_public_manifest, _can_read_internal_manifest
 from app.services.files import create_bundle
 from app.services.attachment_reader import _read_docx
 
@@ -43,6 +43,10 @@ class ManifestSecurityTests(unittest.TestCase):
         with patch('app.services.source_resolver._fetch_public_text', return_value=('[]', 'application/json')):
             with self.assertRaisesRegex(ValueError, 'JSON objekt'):
                 fetch_public_manifest('https://freshcrackers.cz/manifest.json')
+
+    def test_internal_manifest_remains_superadmin_only(self):
+        self.assertFalse(_can_read_internal_manifest(SimpleNamespace(role='user', email='any@example.com')))
+        self.assertTrue(_can_read_internal_manifest(SimpleNamespace(role='superadmin', email='admin@example.com')))
 
     def test_healthz_does_not_leak_internal_exception(self):
         with patch('app.main.bootstrap_state', return_value={'ok': False, 'error': 'db password = hidden'}):
