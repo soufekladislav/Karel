@@ -77,6 +77,30 @@ class GitHubReadTests(unittest.TestCase):
         self.assertEqual(snap["projects_v2_status"], "unavailable")
         self.assertEqual(snap["projects_v2"], [])
 
+    def test_upsert_snapshot_twice_keeps_one_link_and_no_local_tasks(self):
+        from sqlalchemy import create_engine, select, func
+        from sqlalchemy.orm import Session
+        from app.database import Base
+        from app.models import Project, GitHubRepoLink, Task, ProjectEvent
+        from app.services.github_snapshot_store import upsert_snapshot
+
+        dbengine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(dbengine)
+        with Session(dbengine) as db:
+            db.add(Project(id=1, owner_id=1, name="Test project"))
+            db.commit()
+            for n in (1, 2):
+                upsert_snapshot(db, project_id=1, user_id=1, snapshot={
+                    "repository": "demo/Karel", "fetched_at": "2026-11-18T12:00:00Z",
+                    "counts": {"issues_loaded": n}})
+            self.assertEqual(db.scalar(select(func.count(GitHubRepoLink.id))), 1)
+            self.assertEqual(db.scalar(select(func.count(Task.id))), 0)
+            self.assertEqual(db.scalar(select(func.count(ProjectEvent.id))), 2)
+            link = db.scalar(select(GitHubRepoLink))
+            import json
+            self.assertEqual(json.loads(link.snapshot_json)["counts"]["issues_loaded"], 2)
+
+
 
 if __name__ == "__main__":
     unittest.main()
