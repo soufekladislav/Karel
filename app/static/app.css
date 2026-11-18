@@ -226,3 +226,130 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
   .karel-primary-menu>a b{font-size:13px}
   .project-v2 .content-view .view-head h2{font-size:21px}
 }
+
+
+/* UX/P0 – portfolio and project: one factual status, one clear next step.
+   Scoped to Karel's current six-screen app; no replacement theme. */
+.karel-portfolio{max-width:1440px;margin:0 auto;padding-top:34px}
+.karel-page-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:22px}
+.karel-page-heading h1{font-size:clamp(28px,3vw,37px);line-height:1.2;margin:6px 0 9px}
+.karel-page-heading p,.karel-portfolio-toolbar p{margin:0;color:#627066;font-size:14px;line-height:1.65}
+.karel-page-heading>.btn{white-space:nowrap;margin-top:12px}
+.karel-portfolio-stats,.karel-github-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0 26px}
+.karel-portfolio-stats>div,.karel-github-metrics>div{display:flex;flex-direction:column;gap:3px;padding:20px 22px;border:1px solid #dce4d7;background:#fff;border-radius:15px;min-width:0}
+.karel-portfolio-stats strong,.karel-github-metrics strong{font-size:27px;line-height:1.3;font-weight:750;color:#243421;font-variant-numeric:tabular-nums}
+.karel-portfolio-stats span,.karel-github-metrics span{color:#657367;font-size:13px;line-height:1.5}
+.karel-portfolio-stats .needs-attention{border-color:#dfb78b;background:#fffaf3}
+.karel-attention-note{display:flex;align-items:baseline;gap:14px;padding:13px 16px;border-left:4px solid #ba801d;border-radius:10px;background:#fff6e7;color:#6d4811;font-size:13px;margin-bottom:20px;line-height:1.6}
+.karel-attention-note strong{white-space:nowrap}
+.karel-deadlines{border:1px solid #e0e5db;border-radius:12px;margin-bottom:24px;background:#fff}
+.karel-deadlines>summary,.karel-archive>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:650;padding:13px 17px;color:#2c3b28}
+.karel-deadlines>summary span{color:#687665;font-size:12px;font-weight:500}
+.karel-deadline-list{border-top:1px solid #e0e5db}
+.karel-deadline-list a{display:flex;justify-content:space-between;gap:16px;padding:11px 17px;border-bottom:1px solid #edf0e9;font-size:13px}
+.karel-deadline-list a.is-late{color:#983d26}
+.karel-deadline-list a:last-child{border-bottom:0}
+.karel-portfolio-section{margin-top:14px}
+.karel-portfolio-toolbar{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:16px}
+.karel-portfolio-toolbar h2{font-size:22px;line-height:1.3;margin:0 0 5px}
+.karel-project-search{display:flex;flex-direction:column;gap:6px;min-width:min(100%,280px);font-size:12px;color:#556354;font-weight:650}
+.karel-project-search input{border:1px solid #cad7c8;border-radius:10px;padding:11px 13px;background:#fff;color:#1f2d21;font:inherit;font-size:14px}
+.karel-project-search input:focus-visible,.karel-project-card a:focus-visible,.karel-github-connection a:focus-visible{outline:3px solid #9ec415;outline-offset:3px}
+.karel-project-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.karel-project-card{background:#fff;border:1px solid #dce3d7;border-radius:17px;padding:21px;min-width:0;display:flex;flex-direction:column;gap:16px;box-shadow:0 5px 20px rgba(28,48,24,.035)}
+.karel-project-card[hidden],.karel-search-empty[hidden]{display:none!important}
+.karel-project-card-head{display:flex;align-items:center;gap:12px;min-width:0}
+.karel-project-mark{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;border-radius:13px;background:#eaf1d9;color:#42582e;font-size:19px;font-weight:750}
+.karel-project-title{flex:1;min-width:0}
+.karel-project-title h3{font-size:17px;line-height:1.35;letter-spacing:-.01em;overflow-wrap:anywhere;margin:0 0 3px}
+.karel-project-title h3 a{color:#253322}
+.karel-project-type{font-size:11px;color:#617064}
+.karel-status-pill{font-size:11px;line-height:1.5;font-weight:700;border-radius:999px;padding:5px 9px;background:#eff1ed;color:#4e594d;white-space:nowrap;display:inline-flex;align-items:center;max-width:100%}
+.karel-status-pill.synced{background:#e9f4e8;color:#29663c}
+.karel-status-pill.error{background:#fff0e8;color:#963c25}
+.karel-status-pill.setup,.karel-status-pill.unlinked,.karel-status-pill.pending{background:#fff6de;color:#755315}
+.karel-project-goal>span,.karel-project-next>div>span,.karel-focus-label{display:block;text-transform:uppercase;letter-spacing:.04em;font-size:11px;font-weight:700;color:#687466}
+.karel-project-goal p{margin:5px 0 0;color:#374639;font-size:14px;line-height:1.65;overflow-wrap:anywhere;min-height:45px}
+.karel-project-meta{display:flex;gap:8px 15px;align-items:center;flex-wrap:wrap;color:#657266;font-size:12px;padding-bottom:4px}
+.karel-project-meta span{display:inline-flex;gap:4px}
+.karel-project-meta b{color:#293b24}
+.karel-project-meta .is-attention,.karel-project-status-row .is-attention{color:#a64a1b;font-weight:700}
+.karel-project-next{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 14px;border-radius:12px;background:#f2f6ea;border:1px solid #e4ebd9;margin-top:auto}
+.karel-project-next.is-attention{background:#fff4e7;border-color:#f1d2ab}
+.karel-project-next strong{display:block;color:#2d4027;font-size:13px;margin-top:4px;font-weight:650;line-height:1.45}
+.karel-project-next>a{flex-shrink:0;font-size:12px;font-weight:700;color:#3f640a;white-space:nowrap}
+.karel-project-card-footer{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.karel-text-link{color:#476714;font-size:12px;font-weight:750;text-decoration:none}
+.karel-text-link:hover,.karel-project-next>a:hover{text-decoration:underline}
+.karel-empty-state{border:1px dashed #cbd5c3;background:#f7faf2;border-radius:14px;padding:28px;grid-column:1/-1}
+.karel-empty-state h3{margin:0 0 8px;font-size:17px}
+.karel-empty-state p{font-size:14px;line-height:1.6;color:#637160}
+.karel-search-empty{padding:15px;color:#6c776c}
+.karel-archive{margin:22px 0;border:1px solid #dce4d7;background:#fff;border-radius:12px}
+.karel-project-focus{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:13px;margin:8px 0 12px}
+.karel-focus-goal,.karel-focus-next{padding:22px 24px;border:1px solid #dce4d7;background:#fff;border-radius:16px;min-width:0}
+.karel-focus-goal p{margin:9px 0 14px!important;font-size:17px!important;line-height:1.65!important;color:#28382a;overflow-wrap:anywhere}
+.karel-focus-next{background:#edf3de;border-color:#dce9c7}
+.karel-focus-next.is-attention{background:#fff5e9;border-color:#e9c699}
+.karel-focus-next h3{font-size:17px;font-weight:700;line-height:1.5;margin:9px 0 15px;overflow-wrap:anywhere}
+.karel-project-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0 16px}
+.karel-project-status-row>span,.karel-project-status-row>a:not(.karel-status-pill){font-size:12px;line-height:1.5;padding:6px 10px;border-radius:999px;background:#f1f3ed;color:#5a685a}
+.karel-scope-brief{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 19px;border:1px solid #e1e6dc;border-radius:13px;background:#fff;margin:15px 0}
+.karel-scope-brief b{font-size:13px}
+.karel-scope-brief p{font-size:13px!important;color:#687466!important;line-height:1.65!important;margin:5px 0 0!important}
+.karel-scope-brief>a{flex-shrink:0}
+.karel-github-connection{margin:14px 0 22px;padding:24px;border:1px solid #e1e7dc;border-radius:16px;background:#fff}
+.karel-github-connection.setup,.karel-github-connection.unlinked,.karel-github-connection.pending{background:#fbfcf8}
+.karel-github-connection.error{border-color:#e8c3aa;background:#fffaf6}
+.karel-github-connection.synced{border-color:#ccdfc5;background:#f8fcf7}
+.karel-github-connection-top{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.karel-github-connection h2{margin:0 0 8px;font-size:20px;overflow-wrap:anywhere}
+.karel-github-connection p{margin:0 0 12px;font-size:14px;line-height:1.65;color:#55655a}
+.karel-github-time{font-size:12px;color:#637468}
+.karel-github-next{margin-top:16px;padding:13px 16px;background:#fff;border:1px solid #e1e7dc;border-radius:12px}
+.karel-github-next b{font-size:13px}
+.karel-github-next p{font-size:13px;margin:5px 0 0}
+.karel-github-next code{overflow-wrap:anywhere}
+.karel-github-sync-panel{padding:18px 20px;margin:16px 0 22px;background:#fff;border:1px solid #dce4d7;border-radius:14px}
+.karel-github-sync-panel h3{font-size:15px;margin:0 0 14px}
+.karel-github-sync-panel label{display:block;font-size:13px;font-weight:700}
+.karel-github-sync-panel input{width:100%;margin:6px 0 8px;padding:11px;font:inherit;border:1px solid #c6d1c2;border-radius:9px}
+.karel-github-sync-panel p{font-size:12px;line-height:1.55;color:#647061}
+.karel-github-metrics{margin:15px 0}
+.karel-github-metrics>div{padding:15px}
+.karel-snapshot-disclaimer{font-size:12px;color:#657267;padding:0 0 12px}
+@media(max-width:1170px){
+  .karel-project-cards{grid-template-columns:1fr}
+  .karel-project-card-head{flex-wrap:wrap}
+  .karel-project-card-head .karel-status-pill{margin-left:auto}
+}
+@media(max-width:850px){
+  .karel-portfolio-stats,.karel-github-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .karel-project-focus{grid-template-columns:1fr}
+  .karel-portfolio-toolbar{align-items:stretch;flex-direction:column}
+  .karel-project-search{max-width:none;width:100%}
+  .karel-page-heading{flex-wrap:wrap}
+  .karel-scope-brief{flex-direction:column;align-items:flex-start}
+}
+@media(max-width:760px){
+  .karel-portfolio{padding-top:22px!important}
+  .karel-page-heading h1{font-size:27px}
+  .karel-page-heading>.btn{width:100%}
+  .karel-portfolio-stats{gap:9px;margin:17px 0 21px}
+  .karel-portfolio-stats>div,.karel-github-metrics>div{padding:13px}
+  .karel-portfolio-stats strong,.karel-github-metrics strong{font-size:24px}
+  .karel-project-cards{gap:12px}
+  .karel-project-card{padding:16px;gap:13px}
+  .karel-project-card-head{gap:9px}
+  .karel-project-card-head .karel-status-pill{flex-basis:auto;white-space:normal}
+  .karel-project-next{align-items:flex-start;flex-direction:column}
+  .karel-project-card-footer>.btn{width:100%;text-align:center}
+  .karel-project-card-footer{gap:12px}
+  .karel-focus-goal,.karel-focus-next{padding:17px}
+  .karel-focus-goal p{font-size:15px!important}
+  .karel-github-connection{padding:17px}
+  .karel-github-sync-panel{padding:15px}
+  .karel-attention-note{display:block}
+  .karel-deadline-list a{display:block}
+  .karel-project-status-row{padding-bottom:10px}
+}
