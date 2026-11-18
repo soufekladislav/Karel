@@ -49,7 +49,7 @@ class ManifestSecurityTests(unittest.TestCase):
                 fetch_public_manifest('https://freshcrackers.cz/manifest.json')
 
     def test_admin_selfcheck_reports_status_without_exposing_secrets(self):
-        fake = SimpleNamespace(secret='change-me', https_only=False, manifest_allowed_hosts='')
+        fake = SimpleNamespace(secret='change-me', https_only=False, manifest_allowed_hosts='', environment='development', source_allowed_hosts='')
         result = collect_security_checks(fake, {'database': False, 'schema': False, 'error': 'sensitive db url'})
         self.assertTrue(any(x['state'] == 'warning' for x in result['checks']))
         self.assertTrue(any(x['state'] == 'unverified' for x in result['checks']))
