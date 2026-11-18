@@ -141,7 +141,15 @@ def _fetch_public_text(url: str, is_manifest: bool) -> tuple[str, str]:
     return content, content_type
 
 
+def _can_read_internal_manifest(user: User) -> bool:
+    """Keep admin-only manifest data out of non-admin chat context."""
+    return bool(user and (user.role == 'superadmin' or
+                         str(user.email or '').strip().lower() == settings.superadmin_email))
+
+
 def _live_karel_manifest(db: Session, project: Project, user: User, app_version: str) -> str:
+    if not _can_read_internal_manifest(user):
+        raise PermissionError('Interní manifest Karla je dostupný pouze správci.')
     data = build_app_manifest(db, app_version)
     content = json.dumps(data, ensure_ascii=False, indent=2)
     url = str(settings.app_url or '').rstrip('/') + '/manifest.json'
@@ -167,6 +175,8 @@ def _implicit_manifest_source(db: Session, project: Project, user: User, message
         ).order_by(ProjectMemory.id.desc())
     )
     if _is_karel_project(project, stored):
+        if not _can_read_internal_manifest(user):
+            return ['Interní manifest Karla je dostupný pouze správci.']
         return [_live_karel_manifest(db, project, user, app_version)]
     if not stored:
         return []
@@ -218,6 +228,8 @@ def resolve_message_sources(db: Session, project: Project, user: User, message: 
         is_manifest = 'manifest' in lower_message or urlparse(url).path.lower().endswith('manifest.json')
         try:
             if _same_app_manifest(url):
+                if not _can_read_internal_manifest(user):
+                    raise PermissionError('Interní manifest Karla je dostupný pouze správci.')
                 data = build_app_manifest(db, app_version)
                 content = json.dumps(data, ensure_ascii=False, indent=2)
                 content_type = 'application/json'
