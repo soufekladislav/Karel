@@ -82,6 +82,8 @@ class GitHubReadTests(unittest.TestCase):
         from jinja2 import Environment, FileSystemLoader
         root = Path(__file__).resolve().parents[1] / "app" / "templates"
         env = Environment(loader=FileSystemLoader(str(root)))
+        # The application registers a safe Markdown renderer in app.main.
+        env.filters['message_md'] = lambda value: value
         template = env.get_template("github.html")
         self.assertIn("github/sync", (root / "github.html").read_text(encoding="utf-8"))
 
