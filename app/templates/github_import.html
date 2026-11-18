@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="max-width:1100px;margin:36px auto;padding:0 22px 65px">
+  <header class="view-head">
+    <div><div class="eyebrow">Karel · superadministrace</div>
+      <h1>Import projektů z GitHubu</h1>
+      <p>Nejdřív se podíváme, co GitHub skutečně obsahuje. Potom schválíš založení nebo propojení projektů. Nic se nemaže a do GitHubu se nezapisuje.</p>
+    </div>
+  </header>
+  {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
+  {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
+  <div class="fresh-summary">
+    <b>Zdroj: GitHub · pouze čtení</b>
+    <p>Povolení vlastníci: {{ allowed_owners or 'nejsou nastaveni' }} · Privátní repozitáře: {{ 'mohou být dostupné podle přístupového tokenu' if has_token else 'vyžadují token' }}</p>
+    <p>Projekty v Karlovi se kontrolují podle existujících vazeb a názvů. Stejnojmenný rozpor vyžaduje ruční rozhodnutí.</p>
+  </div>
+  <p><a class="btn secondary" href="/admin">Zpět do administrace</a>
+    {% if allowed_owners %}<a class="btn primary" href="/admin/github-import?discover=1">Načíst a porovnat repozitáře</a>{% endif %}</p>
+
+  {% if repositories is not none %}
+  <div class="fresh-summary">
+    <b>Nalezeno {{ repositories|length }} repozitářů</b>
+    <span>Nové: {{ plan|selectattr('action','equalto','create')|list|length }} · Propojit existující: {{ plan|selectattr('action','equalto','attach')|list|length }} · Již propojené: {{ plan|selectattr('action','equalto','linked')|list|length }} · Ruční kontrola: {{ plan|selectattr('action','equalto','review')|list|length }}</span>
+    {% if truncated %}<p style="color:#a4430e"><strong>Výpis není kompletní.</strong> Dosáhl limitu GitHub API; nesmí být považován za kompletní import.</p>{% endif %}
+  </div>
+  <form action="/admin/github-import" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr><th style="text-align:left;padding:10px">Vybrat</th><th style="text-align:left;padding:10px">Repozitář</th><th style="text-align:left;padding:10px">Co se stane</th><th style="text-align:left;padding:10px">Přístup</th></tr></thead>
+        <tbody>
+          {% for item in plan %}
+          <tr style="border-top:1px solid #e3e8e0">
+            <td style="padding:10px"><input type="checkbox" name="repositories" value="{{ item.full_name }}" {% if item.action in ('linked','review') %}disabled{% else %}checked{% endif %}></td>
+            <td style="padding:10px"><a href="{{ item.html_url }}" target="_blank" rel="noopener noreferrer">{{ item.full_name }}</a><div style="color:#737b72;font-size:11px">{{ item.description|truncate(120) }}{% if item.archived %} · Archiv{% endif %}</div></td>
+            <td style="padding:10px"><strong>{% if item.action=='create' %}Založit projekt{% elif item.action=='attach' %}Propojit projekt #{{ item.local_project_id }}{% elif item.action=='linked' %}Již propojen{% else %}Nutné ruční mapování{% endif %}</strong><div style="color:#737b72;font-size:11px">{{ item.reason }}</div></td>
+            <td style="padding:10px">{{ 'Soukromý' if item.private else 'Veřejný' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <label style="display:block;margin:22px 0;font-size:13px"><input type="checkbox" name="confirm" value="yes" required> Rozumím, že se vybrané projekty založí nebo propojí v databázi Karla. Obsah GitHubu se zatím pouze propojí; jeho synchronizace se spouští zvlášť.</label>
+    <button class="btn primary" type="submit">Potvrdit import vybraných projektů</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
