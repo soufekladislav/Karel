@@ -81,6 +81,17 @@ class AttachmentSafetyTests(unittest.TestCase):
             with zipfile.ZipFile(target) as zf:
                 self.assertEqual(zf.namelist(), ['escape.txt'])
 
+    def test_bundle_flattens_windows_traversal_separator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '1').mkdir()
+            (root / '1' / 'a.txt').write_text('safe', encoding='utf-8')
+            with patch.object(settings, 'uploads_dir', root):
+                pf = SimpleNamespace(id=6, name='..\\\\..\\\\secret.txt', stored_name='1/a.txt')
+                target, _ = create_bundle(1, [pf])
+            with zipfile.ZipFile(target) as zf:
+                self.assertEqual(zf.namelist(), ['secret.txt'])
+
     def test_docx_rejects_unbounded_document_xml(self):
         from app.services import attachment_reader as reader
         buffer = io.BytesIO()
@@ -102,6 +113,18 @@ class CrossProjectSecurityTests(unittest.TestCase):
     def test_same_project_chat_id_is_valid(self):
         db = SimpleNamespace(get=lambda model, id: SimpleNamespace(id=id, project_id=55))
         self.assertEqual(require_chat_in_project(db, 55, 123).id, 123)
+
+
+class LibraryPermissionTests(unittest.TestCase):
+    def test_global_or_unowned_library_entry_cannot_be_edited(self):
+        from app.main import library_edit
+        from fastapi import HTTPException
+        db = SimpleNamespace(get=lambda model, id: SimpleNamespace(id=id, owner_id=None),
+                             commit=lambda: self.fail('Must not update shared library'))
+        with patch('app.main.require_user', return_value=SimpleNamespace(id=10)):
+            with self.assertRaises(HTTPException) as caught:
+                library_edit(None, 99, 'Altered title', db=db)
+        self.assertEqual(caught.exception.status_code, 404)
 
 
 class BrowserMutationSecurityTests(unittest.TestCase):
