@@ -23,6 +23,7 @@
       <a class="{% if view=='outputs' %}active{% endif %}" href="/projects/{{ project.id }}?view=outputs"><b>Výstupy</b></a>
       <a class="{% if view=='history' %}active{% endif %}" href="/projects/{{ project.id }}?view=history"><b>Historie</b></a>
     </details>
+    <a class="{% if view=='github' %}active{% endif %}" href="/projects/{{ project.id }}/github"><span>⌘</span><b>GitHub – synchronizace</b></a>
     <a class="{% if view=='settings' %}active{% endif %}" href="/projects/{{ project.id }}?view=settings"><span>⚙</span><b>Nastavení projektu</b></a>
   {% endif %}
 </nav>
