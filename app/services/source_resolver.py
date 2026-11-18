@@ -33,6 +33,25 @@ def _manifest_requested(message: str) -> bool:
     return any(word in low for word in MANIFEST_WORDS)
 
 
+def require_allowed_manifest_host(url: str) -> None:
+    """Fail closed unless the operator explicitly permits this HTTPS manifest host.
+
+    Exact domains and optional '*.domain.tld' subdomain rules are supported.
+    This check complements, but does not replace, public-IP validation.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError('Manifest musí používat veřejnou HTTPS adresu bez přihlašovacích údajů.')
+    if parsed.port not in (None, 443):
+        raise ValueError('Nestandardní port manifestu není povolen.')
+    host = parsed.hostname.lower().rstrip('.')
+    allowed = [x.strip().lower().rstrip('.') for x in settings.manifest_allowed_hosts.split(',') if x.strip()]
+    if not allowed:
+        raise ValueError('Správce musí nastavit MANIFEST_ALLOWED_HOSTS; vzdálené manifesty jsou do té doby vypnuté.')
+    if not any(host == item or (item.startswith('*.') and host.endswith(item[1:]) and host != item[2:]) for item in allowed):
+        raise ValueError('Doména manifestu není na seznamu povolených zdrojů.')
+
+
 def _validate_public_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ('http', 'https') or not parsed.hostname:
@@ -89,6 +108,8 @@ def _fetch_public_text(url: str, is_manifest: bool) -> tuple[str, str]:
     current = url
     response = None
     for _ in range(4):
+        if is_manifest:
+            require_allowed_manifest_host(current)
         _validate_public_url(current)
         with httpx.Client(timeout=12, follow_redirects=False, headers={'User-Agent': 'Karel/2.0 Source Resolver'}) as client:
             response = client.get(current)
@@ -100,6 +121,8 @@ def _fetch_public_text(url: str, is_manifest: bool) -> tuple[str, str]:
             continue
         response.raise_for_status()
         break
+    else:
+        raise ValueError('Příliš mnoho přesměrování při načítání zdroje.')
     if response is None:
         raise ValueError('Zdroj se nepodařilo načíst.')
     if len(response.content) > MAX_SOURCE_BYTES:
@@ -212,3 +235,12 @@ def resolve_message_sources(db: Session, project: Project, user: User, message: 
             blocks.append(f'ZDROJ SE NEPODAŘILO NAČÍST\nURL: {url}\nDůvod: {str(exc)[:300]}')
             db.add(ProjectEvent(project_id=project.id, user_id=user.id, event_type='source_load_error', detail=f'{url}: {str(exc)[:350]}'))
     return blocks
+
+
+def fetch_public_manifest(url: str) -> dict:
+    """Single checked entrypoint for a user-supplied remote manifest URL."""
+    text, _ = _fetch_public_text(url, True)
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError('Manifest musí obsahovat JSON objekt.')
+    return data
