@@ -354,6 +354,8 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     u=require_user(request,db); p=get_project_or_404(db,u,project_id)
     allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github'}
     if view not in allowed_views: view='chat'
+    if view == 'github':
+        return RedirectResponse(f'/projects/{p.id}/github', 303)
     selectable_projects=db.scalars(select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.name)).all()
     chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==False).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
     archived_chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==True).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
@@ -549,7 +551,8 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     safe_views = {'chat','docs','development','tasks','github','settings','testing','releases','outputs','history','files','components'}
     if return_view not in safe_views:
         return_view = 'chat'
-    destination = f'/projects/{p.id}?view={return_view}&chat_id={c.id}'
+    destination = (f'/projects/{p.id}/github?chat_id={c.id}' if return_view == 'github'
+                   else f'/projects/{p.id}?view={return_view}&chat_id={c.id}')
     anchor = '#bottom' if return_view == 'chat' else '#karel-assistant'
     if not message.strip() and not attachments: return RedirectResponse(destination,303)
     user_msg=Message(chat_id=c.id,user_id=u.id,role='user',content=message.strip() or '[Příloha bez textu]')
@@ -1175,7 +1178,7 @@ async def engine_status(request:Request,db:Session=Depends(get_db)):
 
 # GitHub P1 – manual read-only repo snapshot, no writes to external GitHub.
 @app.get('/projects/{project_id}/github', response_class=HTMLResponse)
-def github_project_page(request: Request, project_id: int, db: Session = Depends(get_db)):
+def github_project_page(request: Request, project_id: int, chat_id: int | None = None, db: Session = Depends(get_db)):
     u = require_user(request, db)
     p = get_project_or_404(db, u, project_id)
     link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
@@ -1185,9 +1188,16 @@ def github_project_page(request: Request, project_id: int, db: Session = Depends
         snap = {}
     task_counts = {status: db.scalar(select(func.count(Task.id)).where(
         Task.project_id == p.id, Task.status == status)) or 0 for status in STATUS_LABELS}
+    chats = db.scalars(select(Chat).where(Chat.project_id == p.id, Chat.is_archived == False)
+                       .order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
+    active_chat = next((c for c in chats if c.id == chat_id), chats[0] if chats else None)
+    recent_messages = (db.scalars(select(Message).where(Message.chat_id == active_chat.id)
+                       .order_by(Message.id.desc()).limit(6)).all()[::-1] if active_chat else [])
     return templates.TemplateResponse('github.html', ctx(
         request, u, project=p, view='github', link=link, snapshot=snap,
         task_counts=type('TaskCounts', (), task_counts)(),
+        active_chat=active_chat, recent_messages=recent_messages,
+        can_edit=can_edit_project(db, u, p),
         can_manage=bool(is_superadmin(u) and can_manage_project(db, u, p)),
         github_allowed=bool(settings.github_allowed_owners.strip()),
         notice=request.query_params.get('notice', '')[:300],
@@ -1205,6 +1215,11 @@ def github_project_sync(request: Request, project_id: int,
     link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
     try:
         repo = validate_repository(repository, settings.github_allowed_owners)
+        occupied = db.scalar(select(GitHubRepoLink).where(
+            func.lower(GitHubRepoLink.repository_full_name) == repo.lower(),
+            GitHubRepoLink.project_id != p.id))
+        if occupied:
+            raise GitHubSyncError('Tento repozitář je již přiřazen jinému projektu v Karlovi.')
         with GitHubReader(token=settings.github_read_token) as reader:
             snapshot = reader.snapshot(repo, settings.github_allowed_owners)
     except GitHubSyncError as exc:
