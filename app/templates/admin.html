@@ -2,6 +2,11 @@
 {% block content %}
 <div class="container">
   <section class="hero-row"><div><div class="eyebrow">Supersprávce</div><h1>Admin konzole</h1><p class="muted">Uživatelé, provoz, server a manifest Karla na jednom místě.</p></div><div class="karel-guide small"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>Karel {{ version }}</b><span>Projektový specialista · coding režim odložen.</span></div></div></section>
+  <section class="card">
+    <div class="section-title"><div><h3>GitHub – projekty a synchronizace</h3>
+    <p class="muted">Načti všechny dostupné repozitáře, porovnej je s existujícími projekty a potvrď jen potřebná propojení. Bez automatického mazání nebo přepsání zadání.</p></div>
+    <a class="btn primary" href="/admin/github-import">Importovat repozitáře</a></div>
+  </section>
   <div class="admin-stats"><div><b>{{ stats.users }}</b><span>uživatelů</span></div><div><b>{{ stats.projects }}</b><span>projektů</span></div><div><b>{{ stats.messages }}</b><span>zpráv</span></div><div><b>{{ stats.files }}</b><span>souborů</span></div><div><b>{{ stats.library }}</b><span>knihovna</span></div></div>
   <section class="card">
     <div class="section-title"><div><h3>Kontrola základního zabezpečení</h3>
