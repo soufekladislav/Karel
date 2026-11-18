@@ -9,7 +9,7 @@ class Settings:
     app_name = os.getenv('APP_NAME', 'Karel 2.0')
     app_url = os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')
     secret = os.getenv('APP_SECRET', 'change-me')
-    environment = os.getenv('KAREL_ENV', 'development').strip().lower()
+    environment = os.getenv('KAREL_ENV', 'production' if app_url.startswith('https://') else 'development').strip().lower()
     database_url = os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'storage/karel2.db'}")
     admin_email = os.getenv('ADMIN_EMAIL', '')
     admin_password = os.getenv('ADMIN_PASSWORD', '')
