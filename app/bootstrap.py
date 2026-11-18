@@ -22,8 +22,8 @@ _bootstrap_state = {
 def initialize_app() -> dict:
     """Initialize DB/schema in a way that works under both ASGI and Passenger/WSGI.
 
-    Never lets an initialization exception kill module import. The error is exposed by
-    /healthz so a fresh deployment can be diagnosed without access to application logs.
+    Never lets an initialization exception kill module import.
+    Public /healthz reports only a redacted ready/unavailable state; details go to server logs.
     """
     state = {
         'ok': False,
@@ -38,19 +38,29 @@ def initialize_app() -> dict:
             conn.execute(text('SELECT 1'))
         state['database'] = True
 
-        Base.metadata.create_all(engine)
-        # Additive migration for installations created before Fresh Key project sharing.
-        columns = {c['name'] for c in inspect(engine).get_columns('project_members')}
-        if 'relationship' not in columns:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE project_members ADD COLUMN relationship VARCHAR(24) NOT NULL DEFAULT 'member'"))
+        # Production startup must not perform schema changes. Apply migrations
+        # explicitly after a verified backup, using scripts/schema_migration.py.
+        if settings.environment == 'production':
+            actual = set(inspect(engine).get_table_names())
+            missing = set(Base.metadata.tables) - actual
+            if missing:
+                raise RuntimeError('Produkční databáze vyžaduje schválenou migraci (chybějící tabulky).')
+            columns = {c['name'] for c in inspect(engine).get_columns('project_members')}
+            if 'relationship' not in columns:
+                raise RuntimeError('Produkční databáze vyžaduje schválenou migraci (relationship).')
+        else:
+            Base.metadata.create_all(engine)
+            columns = {c['name'] for c in inspect(engine).get_columns('project_members')}
+            if 'relationship' not in columns:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE project_members ADD COLUMN relationship VARCHAR(24) NOT NULL DEFAULT 'member'"))
         state['schema'] = True
 
         if settings.admin_email and settings.admin_password:
             with SessionLocal() as db:
                 email = settings.admin_email.strip().lower()
                 user = db.scalar(select(User).where(User.email == email))
-                if not user:
+                if not user and settings.environment != 'production':
                     db.add(User(
                         email=email,
                         name=settings.admin_name,
@@ -58,7 +68,8 @@ def initialize_app() -> dict:
                         password_hash=hash_password(settings.admin_password),
                     ))
                     db.commit()
-            state['admin'] = True
+                    user = db.scalar(select(User).where(User.email == email))
+            state['admin'] = bool(user)
         else:
             # App can run without seed credentials, but /login will have no user yet.
             state['admin'] = False
