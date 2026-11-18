@@ -340,7 +340,7 @@ def login(request: Request, email: str=Form(...), password: str=Form(...), db: S
         except Exception: pass
     return RedirectResponse('/',303)
 
-@app.get('/logout')
+@app.post('/logout')
 def logout(request: Request):
     request.session.clear(); return RedirectResponse('/login',303)
 
@@ -1161,7 +1161,7 @@ async def library_add(request:Request,title:str=Form(...),category:str=Form('oth
 def library_edit(request:Request,item_id:int,title:str=Form(...),category:str=Form('other'),description:str=Form(''),db:Session=Depends(get_db)):
     u=require_user(request,db)
     item=db.get(LibraryItem,item_id)
-    if not item or (item.owner_id is not None and item.owner_id!=u.id): raise HTTPException(404)
+    if not item or item.owner_id != u.id: raise HTTPException(404)
     item.title=title.strip() or item.title
     item.category=category.strip()[:80] or item.category
     item.description=description.strip() or None
