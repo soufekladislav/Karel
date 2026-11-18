@@ -31,6 +31,7 @@ from .services.continuation import likely_truncated, continuation_request
 from .services.source_resolver import resolve_message_sources, fetch_public_manifest
 from .services.app_manifest import build_app_manifest
 from .services.security_selfcheck import collect_security_checks
+from .services.request_security import allow_browser_mutation, secure_production_configuration
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
 from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
@@ -48,6 +49,27 @@ app.add_middleware(SessionMiddleware, secret_key=settings.secret, https_only=set
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / 'templates'))
 app.mount('/static', StaticFiles(directory=str(BASE / 'static')), name='static')
+
+
+@app.middleware('http')
+async def browser_mutation_security(request: Request, call_next):
+    # Missing/weak session signing must never be silently accepted in production.
+    if settings.environment == 'production' and not secure_production_configuration(
+            settings.app_url, settings.secret, settings.https_only):
+        return HTMLResponse('Karel není bezpečně nakonfigurován. Kontaktuj správce serveru.',
+                            status_code=503)
+    if request.method.upper() in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+        if not allow_browser_mutation(request.headers, settings.app_url):
+            return HTMLResponse('Požadavek byl odmítnut z bezpečnostních důvodů (původ formuláře).',
+                                status_code=403)
+    response = await call_next(request)
+    # Never permit browser caching of private pages and responses.
+    if request.url.path not in ('/static/app.css',) and not request.url.path.startswith('/static/'):
+        response.headers.setdefault('Cache-Control', 'no-store')
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+    return response
 
 def render_message_text(value):
     text=str(value or '')
@@ -228,6 +250,14 @@ def can_edit_project(db, user, project):
 
 def can_manage_project(db, user, project):
     return project_role(db, user, project) in {"owner", "manager"}
+
+def require_chat_in_project(db, project_id: int, chat_id: int) -> Chat:
+    """Never allow one project's form ID to bind a chat from another project."""
+    chat = db.get(Chat, chat_id)
+    if not chat or chat.project_id != project_id:
+        raise HTTPException(404)
+    return chat
+
 
 def get_project_or_404(db, user, project_id, *, write=False, manage=False):
     p = db.get(Project, project_id)
@@ -792,6 +822,7 @@ def dismiss_action(request:Request, project_id:int, action_id:int, db:Session=De
 @app.post('/projects/{project_id}/tasks')
 def add_task(request:Request, project_id:int, chat_id:int=Form(...), title:str=Form(...), description:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
+    require_chat_in_project(db,p.id,chat_id)
     db.add(Task(project_id=p.id,chat_id=chat_id,title=title.strip(),description=description.strip() or None,status='todo')); db.commit()
     return RedirectResponse(f'/projects/{p.id}?chat_id={chat_id}',303)
 
@@ -843,7 +874,10 @@ def download_file(request:Request,file_id:int,db:Session=Depends(get_db)):
 @app.post('/projects/{project_id}/bundle')
 def bundle_files(request:Request,project_id:int,chat_id:int=Form(...),db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
-    src=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id, ProjectFile.status=='current').order_by(ProjectFile.id)).all()
+    require_chat_in_project(db,p.id,chat_id)
+    # Never include previously generated ZIP outputs in another exported bundle.
+    src=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id,
+        ProjectFile.status=='current', ProjectFile.kind!='output').order_by(ProjectFile.id)).all()
     if not src: return RedirectResponse(f'/projects/{p.id}?chat_id={chat_id}',303)
     target,size=create_bundle(p.id,src,f'{p.name.lower().replace(" ","-")}-files.zip')
     stored=f'{p.id}/{target.name}'
