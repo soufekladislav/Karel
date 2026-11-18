@@ -27,6 +27,7 @@ class Settings:
     github_read_token = os.getenv('GITHUB_READ_TOKEN', '')
     github_allowed_owners = os.getenv('GITHUB_ALLOWED_OWNERS', '')
     manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()
+    source_allowed_hosts = os.getenv('SOURCE_ALLOWED_HOSTS', '').strip()
     max_upload_mb = int(os.getenv('MAX_UPLOAD_MB', '100'))
     https_only = os.getenv('SESSION_HTTPS_ONLY', 'true').lower() in ('1','true','yes','on')
     storage_dir = BASE_DIR / 'storage'
