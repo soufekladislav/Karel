@@ -16,7 +16,7 @@ class WorkspaceUxTests(unittest.TestCase):
         cls.templates = env
 
     def test_existing_templates_remain_parseable(self):
-        for name in ('base.html', '_sidebar.html', 'project.html', 'dashboard.html',
+        for name in ('base.html', '_sidebar.html', '_project_mobile_nav.html', 'project.html', 'dashboard.html',
                      'library.html', 'github.html', 'settings.html', 'account.html', 'admin.html'):
             with self.subTest(template=name):
                 self.templates.get_template(name)
@@ -52,6 +52,15 @@ class WorkspaceUxTests(unittest.TestCase):
         self.assertIn('karel-github-connection', github)
         self.assertIn("('synced','error')", github)
         self.assertIn('karel-snapshot-disclaimer', github)
+
+    def test_mobile_navigation_is_shared_with_github(self):
+        nav = (ROOT / 'app' / 'templates' / '_project_mobile_nav.html').read_text(encoding='utf-8')
+        page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
+        github = (ROOT / 'app' / 'templates' / 'github.html').read_text(encoding='utf-8')
+        self.assertIn("include '_project_mobile_nav.html'", page)
+        self.assertIn("include '_project_mobile_nav.html'", github)
+        self.assertIn('project-mobile-nav', nav)
+        self.assertIn("view=='github'", nav)
 
     def test_context_chat_retains_screen_and_authoritative_approval(self):
         page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
