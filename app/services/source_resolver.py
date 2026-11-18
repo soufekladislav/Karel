@@ -33,23 +33,36 @@ def _manifest_requested(message: str) -> bool:
     return any(word in low for word in MANIFEST_WORDS)
 
 
-def require_allowed_manifest_host(url: str) -> None:
-    """Fail closed unless the operator explicitly permits this HTTPS manifest host.
+def _require_trusted_host(url: str, allowed_csv: str, setting_name: str) -> None:
+    """Bound public HTTP retrieval to explicitly trusted HTTPS hostnames.
 
-    Exact domains and optional '*.domain.tld' subdomain rules are supported.
-    This check complements, but does not replace, public-IP validation.
+    Wildcards match only subdomains, never the apex or unrelated suffixes.
     """
     parsed = urlparse(url)
     if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password:
-        raise ValueError('Manifest musí používat veřejnou HTTPS adresu bez přihlašovacích údajů.')
-    if parsed.port not in (None, 443):
-        raise ValueError('Nestandardní port manifestu není povolen.')
+        raise ValueError('Externí zdroj musí používat HTTPS bez přihlašovacích údajů.')
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError('Neplatný port vzdáleného zdroje.') from exc
+    if port not in (None, 443):
+        raise ValueError('Nestandardní port externího zdroje není povolen.')
     host = parsed.hostname.lower().rstrip('.')
-    allowed = [x.strip().lower().rstrip('.') for x in settings.manifest_allowed_hosts.split(',') if x.strip()]
+    allowed = [x.strip().lower().rstrip('.') for x in allowed_csv.split(',') if x.strip()]
     if not allowed:
-        raise ValueError('Správce musí nastavit MANIFEST_ALLOWED_HOSTS; vzdálené manifesty jsou do té doby vypnuté.')
-    if not any(host == item or (item.startswith('*.') and host.endswith(item[1:]) and host != item[2:]) for item in allowed):
-        raise ValueError('Doména manifestu není na seznamu povolených zdrojů.')
+        raise ValueError('Správce musí nastavit ' + setting_name + '; externí zdroje jsou vypnuté.')
+    if not any(host == item or (item.startswith('*.') and
+               host.endswith(item[1:]) and host != item[2:])
+               for item in allowed if item != '*'):
+        raise ValueError('Doména externího zdroje není povolena v ' + setting_name + '.')
+
+
+def require_allowed_manifest_host(url: str) -> None:
+    _require_trusted_host(url, settings.manifest_allowed_hosts, 'MANIFEST_ALLOWED_HOSTS')
+
+
+def require_allowed_source_host(url: str) -> None:
+    _require_trusted_host(url, settings.source_allowed_hosts, 'SOURCE_ALLOWED_HOSTS')
 
 
 def _validate_public_url(url: str) -> None:
@@ -110,35 +123,36 @@ def _fetch_public_text(url: str, is_manifest: bool) -> tuple[str, str]:
     for _ in range(4):
         if is_manifest:
             require_allowed_manifest_host(current)
+        else:
+            require_allowed_source_host(current)
         _validate_public_url(current)
-        with httpx.Client(timeout=12, follow_redirects=False, headers={'User-Agent': 'Karel/2.0 Source Resolver'}) as client:
-            response = client.get(current)
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get('location')
-            if not location:
-                raise ValueError('Přesměrování nemá cílovou adresu.')
-            current = str(httpx.URL(current).join(location))
-            continue
-        response.raise_for_status()
-        break
-    else:
-        raise ValueError('Příliš mnoho přesměrování při načítání zdroje.')
-    if response is None:
-        raise ValueError('Zdroj se nepodařilo načíst.')
-    if len(response.content) > MAX_SOURCE_BYTES:
-        raise ValueError('Zdroj je větší než 1 MB.')
-    content_type = (response.headers.get('content-type') or '').lower()
-    if not any(h in content_type for h in ALLOWED_CONTENT_HINTS) and not is_manifest:
-        raise ValueError('URL nevrací podporovaný textový zdroj.')
-    if is_manifest:
-        try:
-            data = response.json()
-            content = json.dumps(data, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            raise ValueError('Manifest není platný JSON.') from exc
-    else:
-        content = response.text
-    return content, content_type
+        # Stream response to cap *decompressed* data instead of buffering it whole.
+        with httpx.Client(timeout=12, follow_redirects=False,
+                          headers={'User-Agent': 'Karel/2.0 Source Resolver'}) as client:
+            with client.stream('GET', current) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get('location')
+                    if not location:
+                        raise ValueError('Přesměrování nemá cílovou adresu.')
+                    current = str(httpx.URL(current).join(location))
+                    continue
+                response.raise_for_status()
+                content_type = (response.headers.get('content-type') or '').lower()
+                if not any(h in content_type for h in ALLOWED_CONTENT_HINTS) and not is_manifest:
+                    raise ValueError('URL nevrací podporovaný textový zdroj.')
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_SOURCE_BYTES:
+                        raise ValueError('Zdroj je větší než 1 MB.')
+                if is_manifest:
+                    try:
+                        data = json.loads(body.decode('utf-8-sig'))
+                        return json.dumps(data, ensure_ascii=False, indent=2), content_type
+                    except (ValueError, UnicodeError) as exc:
+                        raise ValueError('Manifest není platný JSON.') from exc
+                return body.decode(response.encoding or 'utf-8', errors='replace'), content_type
+    raise ValueError('Příliš mnoho přesměrování při načítání zdro.')
 
 
 def _can_read_internal_manifest(user: User) -> bool:
