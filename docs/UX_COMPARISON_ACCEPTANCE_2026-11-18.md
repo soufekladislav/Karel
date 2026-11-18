@@ -52,3 +52,26 @@ jedno Issue s očekáváním, realitou, krokem reprodukce a prioritou P0–P3.
 
 **Pravidlo:** uživatelská jednoduchost a prověřená funkčnost mají přednost
 před efektním UI a rozšiřováním aplikace o další moduly.
+
+## P0 UX – první implementační etapa, 18. 11. 2026
+
+Realizováno v integrační větvi `develop/karel-platform` (draft PR #14):
+- Portfolio (Nástěnka): obchodní cíl jako stručný **odvozený náhled**
+  (originální data a znění specifikace se nemění); počet otevřených, čekajících
+  a chybných úkolů; jeden další krok odvozený z dostupných údajů; filtrování.
+- Přehled projektu: podrobné zadání je v Dokumentaci, karta ukazuje jen účel,
+  stav úkolů, rozsah, stav GitHubu a další krok. Workflow zůstává dostupné.
+- GitHub: přísně oddělené stavy vyžaduje nastavení, nepřipojeno, čeká,
+  chyba synchronizace, synchronizováno. Počet Issues a PR se nevykresluje
+  jako platný snímek, dokud není ověřené načtení.
+- Mobil: jedna sdílená navigace projektových pohledů včetně GitHubu.
+- Poppins a čitelnější typografie; změny pouze v šablonách/CSS a prezentačních
+  funkcích, **bez DB migrací, přepsání zadání a přímých GitHub zápisů**.
+- Regresní testy: helpers pro reálné next steps, různé GitHub stavy,
+  render dashboardu s připojeným i prázdným portfoliem, render nepřipojeného
+  a synchronizovaného GitHubu, kontrola mobilních tabů.
+
+**Stav akceptace:** automatický test a běžící nasazení jsou dvě různé věci.
+Ještě musí proběhnout vizuální a funkční test na skutečné verzi Exonu
+(PC/mobil, načtení dat, scroll, klikání, obnovení stránky, role a chybové stavy).
+Do té doby neoznačovat `PRODUKCE OK`.
