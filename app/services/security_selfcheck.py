@@ -11,6 +11,18 @@ def collect_security_checks(settings, bootstrap_state: dict) -> dict:
     secret_ok = len(secret) >= 32 and secret not in ('change-me', 'CHANGE_ME_TO_A_LONG_RANDOM_SECRET')
     checks = [
         {
+            'id': 'production-mode',
+            'label': 'Režim produkčního prostředí',
+            'state': 'ok' if settings.environment == 'production' else 'warning',
+            'detail': 'Produkční bezpečnostní podmínky jsou vynuceny.' if settings.environment == 'production' else 'Na serveru nastav KAREL_ENV=production.',
+        },
+        {
+            'id': 'source-hosts',
+            'label': 'Povolené webové zdroje chatu',
+            'state': 'ok' if settings.source_allowed_hosts else 'unverified',
+            'detail': 'Povolené domény jsou nakonfigurovány.' if settings.source_allowed_hosts else 'Externí webové zdroje zůstanou vypnuté, dokud nenastavíš SOURCE_ALLOWED_HOSTS.',
+        },
+        {
             'id': 'session-secret',
             'label': 'Ochrana přihlašovacích relací',
             'state': 'ok' if secret_ok else 'warning',
