@@ -10,6 +10,7 @@ import html
 import re
 import httpx
 from urllib.parse import quote
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 from fastapi import FastAPI, Request, Form, UploadFile, File, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -38,6 +39,7 @@ from .services.attachment_reader import attachments_context
 from .services import fresh_key
 from .services.github_connector import GitHubReader, GitHubSyncError, validate_repository
 from .services.github_snapshot_store import upsert_snapshot
+from .services.github_bulk_import import discover_repositories, prepare_import_plan, apply_import_plan
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .bootstrap import initialize_app, bootstrap_state
 
@@ -1215,3 +1217,65 @@ def github_project_sync(request: Request, project_id: int,
     upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
     return RedirectResponse('/projects/' + str(p.id) +
                             '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
+
+
+# Administration: import local project shells for each GitHub repository.
+# All mutations require superadmin, an explicit confirmation and a short-lived token.
+@app.get('/admin/github-import', response_class=HTMLResponse)
+def github_import_preview(request: Request, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    if not is_superadmin(u):
+        raise HTTPException(403)
+    repositories = None
+    plan = []
+    truncated = False
+    error = ''
+    if request.query_params.get('discover') == '1' and settings.github_allowed_owners:
+        try:
+            with GitHubReader(token=settings.github_read_token) as reader:
+                repositories, truncated = discover_repositories(reader, settings.github_allowed_owners)
+            plan = prepare_import_plan(db, u.id, repositories)
+        except GitHubSyncError as exc:
+            error = str(exc)[:350]
+    csrf_token = URLSafeTimedSerializer(settings.secret, salt='karel-github-import-v1').dumps({'user_id': u.id})
+    return templates.TemplateResponse('github_import.html', ctx(
+        request, u, repositories=repositories, plan=plan, truncated=truncated,
+        error=error, csrf_token=csrf_token, has_token=bool(settings.github_read_token),
+        allowed_owners=settings.github_allowed_owners,
+        notice=request.query_params.get('notice', '')[:300],
+    ))
+
+
+@app.post('/admin/github-import')
+async def github_import_apply(request: Request, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    if not is_superadmin(u):
+        raise HTTPException(403)
+    form = await request.form()
+    signed = str(form.get('csrf_token') or '')
+    try:
+        payload = URLSafeTimedSerializer(settings.secret, salt='karel-github-import-v1').loads(
+            signed, max_age=600)
+    except BadSignature:
+        raise HTTPException(403, 'Formulář vypršel; načti aktuální náhled GitHubu.')
+    if payload.get('user_id') != u.id:
+        raise HTTPException(403)
+    if str(form.get('confirm') or '') != 'yes':
+        raise HTTPException(400, 'Import nebyl výslovně potvrzen.')
+    selected = [str(v) for v in form.getlist('repositories')]
+    if not selected:
+        return RedirectResponse('/admin/github-import?notice=' + quote('Nic nebylo vybráno.'), 303)
+    if len(selected) > 75:
+        raise HTTPException(400, 'Zpracuj nejvýše 75 repozitářů v jedné dávce.')
+    try:
+        with GitHubReader(token=settings.github_read_token) as reader:
+            repositories, _ = discover_repositories(reader, settings.github_allowed_owners)
+        plan = prepare_import_plan(db, u.id, repositories)
+        result = apply_import_plan(db, u.id, plan, selected)
+    except (GitHubSyncError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)[:350])
+    message = (f'Vytvořeno {result["created"]}, propojeno {result["attached"]}, '
+               f'již propojeno {result["linked"]}, vyžaduje kontrolu {result["skipped"]}. '
+               'Pro načtení Issues a PR spusť synchronizaci u jednotlivých projektů.')
+    return RedirectResponse('/admin/github-import?notice=' + quote(message), 303)
