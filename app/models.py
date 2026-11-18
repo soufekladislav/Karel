@@ -140,3 +140,16 @@ class ProjectStage(Base):
     completed_at: Mapped[datetime|None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint('project_id','stage_no',name='uq_project_stage_number'),)
+
+
+class GitHubRepoLink(Base):
+    """GitHub is authoritative. This is an immutable-at-a-time local snapshot cache."""
+    __tablename__ = 'github_repo_links'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('projects.id'), unique=True, index=True)
+    repository_full_name: Mapped[str] = mapped_column(String(201))
+    snapshot_json: Mapped[str] = mapped_column(Text, default='{}')
+    last_synced_at: Mapped[datetime|None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str|None] = mapped_column(String(350), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime|None] = mapped_column(DateTime, nullable=True)

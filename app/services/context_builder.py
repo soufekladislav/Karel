@@ -317,6 +317,22 @@ def build_context(
 
     parts.extend(_current_project_context(db, project, query, query_terms))
 
+    # Small, timestamped GitHub snapshot only when project context is relevant.
+    if any(term in (query or '').lower() for term in
+           ('github', 'issue', 'repo', 'projekt', 'úkol', 'ukol', 'stav', 'synchroniz', 'ci ', 'branch')):
+        try:
+            from ..models import GitHubRepoLink
+            from .github_connector import prompt_summary
+            import json
+            link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == project.id))
+            if link and link.snapshot_json:
+                snapshot = json.loads(link.snapshot_json)
+                parts.append(prompt_summary(snapshot))
+        except (ValueError, TypeError):
+            parts.append('GitHub snapshot nelze načíst; neodvozuj z něj stav projektu.')
+
+
+
     if user:
         flags = _intent_flags(query)
         if flags.get('library'):

@@ -6,6 +6,8 @@
 - [Realizační plán](docs/IMPLEMENTATION_PLAN.md) – etapy P0–P5 a testovací brány.
 - [AGENTS.md](AGENTS.md) – pravidla pro Codex/AI vývojáře.
 
+**Nový návrh P1 (samostatná větev před nasazením):** [Read-only GitHub import/sync](docs/OPERATIONAL_AUDIT_2026-11-18.md). Konfigurace GITHUB_ALLOWED_OWNERS a volitelně GITHUB_READ_TOKEN, nový režim jen pro superadmina. Sloučení P1 a nasazení vyžaduje CI, staging a schválení; dokumentované jako dosud neověřené v produkci.
+
 **Rozlišení stavů:** současný kód obsahuje lokální projektové funkce a Fresh AI Engine; nové GitHub synchronizace, plánování přes GitHub Projects a Codex fronta jsou **požadavky na vývoj**, nikoli dokončené funkce. Nasazenou produkci je nutné nejprve porovnat s GitHub verzí. Níže je zachován původní README pro historický alpha.24 import.
 
 ---

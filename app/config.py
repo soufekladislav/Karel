@@ -22,6 +22,9 @@ class Settings:
     engine_mode = os.getenv('FRESH_AI_ENGINE_MODE', 'fresh').lower()
     engine_timeout = int(os.getenv('FRESH_AI_ENGINE_TIMEOUT', '180'))
     engine_retries = int(os.getenv('FRESH_AI_ENGINE_RETRIES', '3'))
+    # Single-admin P1: read-only GitHub credential, never in DB or UI.
+    github_read_token = os.getenv('GITHUB_READ_TOKEN', '')
+    github_allowed_owners = os.getenv('GITHUB_ALLOWED_OWNERS', '')
     manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()
     max_upload_mb = int(os.getenv('MAX_UPLOAD_MB', '100'))
     https_only = os.getenv('SESSION_HTTPS_ONLY', 'true').lower() in ('1','true','yes','on')
