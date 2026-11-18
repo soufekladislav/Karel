@@ -29,6 +29,7 @@ from .services.engine import chat as engine_chat, health as engine_health, Engin
 from .services.continuation import likely_truncated, continuation_request
 from .services.source_resolver import resolve_message_sources, fetch_public_manifest
 from .services.app_manifest import build_app_manifest
+from .services.security_selfcheck import collect_security_checks
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
 from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
@@ -1042,7 +1043,7 @@ def admin_console(request:Request, db:Session=Depends(get_db)):
         'files': db.scalar(select(func.count(ProjectFile.id))) or 0,
         'library': db.scalar(select(func.count(LibraryItem.id))) or 0,
     }
-    return templates.TemplateResponse('admin.html',ctx(request,u,users=users,stats=stats,system=_system_stats(),version=APP_VERSION,db_driver=engine.url.drivername,manifest_url='/manifest.json',brain=load_brain()))
+    return templates.TemplateResponse('admin.html',ctx(request,u,users=users,stats=stats,system=_system_stats(),version=APP_VERSION,db_driver=engine.url.drivername,manifest_url='/manifest.json',brain=load_brain(),security_checks=collect_security_checks(settings, bootstrap_state())))
 
 @app.post('/admin/brain')
 async def admin_brain_save(request:Request, db:Session=Depends(get_db)):
