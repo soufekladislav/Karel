@@ -350,7 +350,7 @@ def create_project(request: Request, name: str=Form(...), description: str=Form(
 @app.get('/projects/{project_id}', response_class=HTMLResponse)
 def project_view(request: Request, project_id: int, chat_id: int|None=None, view: str='chat', db: Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id)
-    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing'}
+    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github'}
     if view not in allowed_views: view='chat'
     selectable_projects=db.scalars(select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.name)).all()
     chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==False).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
@@ -540,11 +540,16 @@ def delete_project(request:Request, project_id:int, db:Session=Depends(get_db)):
     return RedirectResponse('/?notice='+quote('Projekt byl trvale smazán.'),303)
 
 @app.post('/projects/{project_id}/chat/{chat_id}/send')
-async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), db:Session=Depends(get_db)):
+async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), return_view:str=Form('chat'), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
-    if not message.strip() and not attachments: return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}',303)
+    allowed_context_views = {'chat','docs','development','tasks','github','settings','testing','releases','outputs','history','files','components'}
+    if return_view not in allowed_context_views:
+        return_view = 'chat'
+    destination = f'/projects/{p.id}?view={return_view}&chat_id={c.id}'
+    anchor = '#bottom' if return_view == 'chat' else '#karel-assistant'
+    if not message.strip() and not attachments: return RedirectResponse(destination,303)
     user_msg=Message(chat_id=c.id,user_id=u.id,role='user',content=message.strip() or '[Příloha bez textu]')
     db.add(user_msg); db.flush()
     attachment_meta=[]
@@ -565,7 +570,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=action_result_text(batch)))
             db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_batch_confirmed',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
             c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-            return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}&notice='+quote(action_result_text(batch))+'#bottom',303)
+            return RedirectResponse(destination+'&notice='+quote(action_result_text(batch))+anchor,303)
 
     # A new non-confirmation message means the user continued the discussion instead of
     # approving the current proposal. Close that proposal and keep the decision in history.
@@ -583,14 +588,14 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
         db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=reply))
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='orchestrator_write_planned',detail=titles[:1800]))
         c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-        return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+        return RedirectResponse(destination+anchor,303)
 
     orchestration=orchestrate(db,p,c,u,user_msg.content,current_message_id=user_msg.id)
     if orchestration.mode == 'direct' and orchestration.direct_response is not None and not attachment_meta:
         db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=orchestration.direct_response))
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='orchestrator_direct',detail=json.dumps({'tools':orchestration.tools_used},ensure_ascii=False)))
         c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-        return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+        return RedirectResponse(destination+anchor,303)
     source_blocks=resolve_message_sources(db,p,u,user_msg.content,APP_VERSION)
     tool_blocks=list(orchestration.context_blocks or [])
     if source_blocks:
@@ -609,6 +614,12 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             extracted,reports=attachments_context(recent_files)
             attachment_sources.append('STARŠÍ PŘÍLOHY Z TOHOTO PROJEKTU, přečtené na výslovnou žádost uživatele:\n'+extracted)
     system=build_context(db,p,c,u,query=user_msg.content,extra_sources=attachment_sources+tool_blocks) + "\n\n" + workflow_context(get_stages(db,p.id))
+    if return_view != 'chat':
+        labels = {'docs':'Zadání a obchodní cíle','github':'GitHub','development':'Pipeline projektu',
+                  'tasks':'Úkoly projektu','settings':'Nastavení projektu','testing':'Testování',
+                  'releases':'Release','outputs':'Výstupy','history':'Historie',
+                  'files':'Soubory','components':'Komponenty'}
+        system += "\nKONTEXT UI: dotaz byl položen na obrazovce " + labels.get(return_view,return_view) + ". Neodvozuj konkrétní data, která nebyla skutečně načtena."
     try:
         raw=await engine_chat(system, user_msg.content, attachment_meta)
         visible=apply_state(db,p.id,c.id,raw,source_message_id=user_msg.id,allow_actions=not is_complex_project_brief(user_msg.content))
@@ -619,7 +630,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     ai_msg=Message(chat_id=c.id,user_id=None,role='assistant',content=visible or 'Hotovo.')
     db.add(ai_msg); c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='chat_message',detail=f'Zpráva v chatu {c.title}'))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+    return RedirectResponse(destination+anchor,303)
 
 @app.post('/projects/{project_id}/chat/{chat_id}/continue')
 async def continue_assistant_message(request:Request,project_id:int,chat_id:int,db:Session=Depends(get_db)):

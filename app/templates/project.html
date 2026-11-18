@@ -1,12 +1,23 @@
 {% extends "base.html" %}
 {% block pageclass %}project-page project-v2{% endblock %}
 {% block content %}
-<div class="project-app">
+<div class="project-app {% if view != 'chat' %}with-context-chat{% endif %}">
   <aside class="project-sidebar" aria-label="Navigace projektu">{% include '_sidebar.html' %}</aside>
 
   <section class="project-content">
     {% if notice %}<div class="project-alert ok">{{ notice }}{% if notice_url %} <a class="result-link" href="{{ notice_url }}">{{ notice_label }} →</a>{% endif %}</div>{% endif %}
     {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
+
+    {% if view in ['development','tasks','testing','releases','outputs','history','files','components'] %}
+    <nav class="karel-workspace-tabs" aria-label="Části projektové pipeline">
+      <a href="/projects/{{ project.id }}?view=development" class="{% if view=='development' %}active{% endif %}">Přehled</a>
+      <a href="/projects/{{ project.id }}?view=tasks" class="{% if view=='tasks' %}active{% endif %}">Úkoly</a>
+      <a href="/projects/{{ project.id }}?view=testing" class="{% if view=='testing' %}active{% endif %}">Testování</a>
+      <a href="/projects/{{ project.id }}?view=releases" class="{% if view in ['releases','outputs'] %}active{% endif %}">Výstupy</a>
+      <a href="/projects/{{ project.id }}?view=history" class="{% if view=='history' %}active{% endif %}">Historie</a>
+      <details class="karel-more"><summary>Další</summary><a href="/projects/{{ project.id }}?view=files">Soubory</a><a href="/projects/{{ project.id }}?view=components">Komponenty</a></details>
+    </nav>
+    {% endif %}
 
     {% if view == 'chat' %}
     <div class="chat-workspace">
@@ -68,6 +79,16 @@
       <details class="context-card"><summary><span>RELEASE</span><em>Ve vývoji</em></summary><div class="context-card-body"><p>Výstupní ZIPy nejsou automaticky ověřené release.</p><a href="/projects/{{ project.id }}?view=releases">Přehled release →</a></div></details>
     </aside>
 
+    {% elif view == 'github' %}
+    <div class="content-view fresh-clean">
+      <header class="view-head"><div><div class="eyebrow">Projektové zdroje</div><h2>GitHub</h2>
+        <p>Repozitáře, Issues, Pull Requesty, projektové boardy a synchronizace budou přístupné z jedné obrazovky.</p></div></header>
+      <section class="settings-block">
+        <h3>GitHub konektor se připravuje</h3>
+        <p>Čtecí import existuje v rozpracovaném <a href="https://github.com/soufekladislav/Karel/pull/3" target="_blank" rel="noopener noreferrer">PR #3</a>, ale zatím není schválený ani nasazený. Žádná externí data se na této obrazovce nepředstírají.</p>
+        <p>Po otestování zde bude stav připojení, čas synchronizace a mapování Issues na projekty a jejich pipeline.</p>
+      </section>
+    </div>
     {% elif view == 'docs' %}
     <div class="content-view fresh-clean"><header class="view-head"><div><div class="eyebrow">Projektová dokumentace</div><h2>Zadání a dokumentace</h2><p>Tady je hlavní zdroj pravdy pro projekt. Přehled projektu zobrazuje pouze stručné souhrny a harmonogram.</p></div></header>
       <div class="fresh-summary"><strong>{{ project.name }}</strong><span>{{ document_memories|length }} záznamů · zdroj: projektová paměť</span><a class="btn secondary small" href="/projects/{{ project.id }}?view=development#workflow">Otevřít workflow projektu</a></div>
@@ -149,16 +170,40 @@
     </div>
     {% endif %}
   </section>
+  {% if view != 'chat' %}
+  <aside class="karel-quick-panel" id="karel-assistant" aria-label="Kontextový chat Karla">
+    <div class="karel-quick-header"><div><strong>Chat s Karlem</strong><small>Aktuální projekt: {{ project.name }}</small></div><a href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}" title="Otevřít celý chat">Otevřít ↗</a></div>
+    <div class="karel-quick-messages">
+      {% for m in messages[-6:] %}
+      <div class="karel-quick-message {% if m.role=='user' %}from-user{% endif %}">
+        <b>{% if m.role=='assistant' %}Karel{% else %}Ty{% endif %}</b>
+        <div class="karel-quick-text">{{ m.content|truncate(700)|message_md|safe }}</div>
+      </div>
+      {% else %}
+      <p class="karel-quick-empty">Zeptej se na zadání, úkoly nebo další postup projektu.</p>
+      {% endfor %}
+      {% if proposals %}<p class="karel-quick-pending">Připravený návrh čeká na schválení. <a href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}">Zobrazit v chatu</a>.</p>{% endif %}
+    </div>
+    {% if can_edit %}
+    <form class="karel-quick-form" method="post" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/send">
+      <input type="hidden" name="return_view" value="{{ view }}">
+      <label for="karel-quick-input" class="sr-only">Dotaz pro Karla</label>
+      <textarea id="karel-quick-input" name="message" rows="3" required placeholder="Zeptej se Karla k této obrazovce…"></textarea>
+      <div class="karel-quick-form-actions"><span>Kontext: {{ {'docs':'Zadání','github':'GitHub','development':'Pipeline','tasks':'Úkoly','settings':'Nastavení'}.get(view,view) }}</span><button type="submit" class="btn primary small">Odeslat</button></div>
+    </form>
+    {% else %}<p class="karel-quick-readonly">K projektu máš přístup pouze pro čtení.</p>{% endif %}
+  </aside>
+  {% endif %}
 </div>
 
 <nav class="project-mobile-nav" aria-label="Mobilní navigace projektu">
-  <a class="{% if view=='chat' %}active{% endif %}" href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}"><span>💬</span>Chat</a>
-  <a class="{% if view=='development' %}active{% endif %}" href="/projects/{{ project.id }}?view=development"><span>🗺</span>Mapa</a>
-  <a class="{% if view=='tasks' %}active{% endif %}" href="/projects/{{ project.id }}?view=tasks"><span>✓</span>Úkoly</a>
-  <a class="{% if view=='outputs' %}active{% endif %}" href="/projects/{{ project.id }}?view=outputs"><span>📦</span>Výstupy</a>
+  <a class="{% if view=='chat' %}active{% endif %}" href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}"><span>CH</span>Chat</a>
+  <a class="{% if view=='docs' %}active{% endif %}" href="/projects/{{ project.id }}?view=docs"><span>Z</span>Zadání</a>
+  <a class="{% if view=='github' %}active{% endif %}" href="/projects/{{ project.id }}/github"><span>GH</span>GitHub</a>
+  <a class="{% if view in ['development','tasks','releases','testing','outputs','history','files','components'] %}active{% endif %}" href="/projects/{{ project.id }}?view=development"><span>PL</span>Pipeline</a>
   <button type="button" onclick="toggle('mobile-more')"><span>•••</span>Více</button>
 </nav>
-<div id="mobile-more" class="mobile-more-menu"><div class="mobile-more-card"><div class="mobile-more-head"><div class="project-karel"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>{{ project.name }}</b><span>Další části projektu</span></div></div><button class="pencil-btn" onclick="toggle('mobile-more')">×</button></div><a href="/projects/{{ project.id }}?view=docs">▤ Dokumentace</a><a href="/projects/{{ project.id }}?view=components">▦ Komponenty · ve vývoji</a><a href="/projects/{{ project.id }}?view=releases">↗ Release · ve vývoji</a><a href="/projects/{{ project.id }}?view=testing">◇ Testování · ve vývoji</a><a href="/projects/{{ project.id }}?view=history">↺ Historie</a><a href="/projects/{{ project.id }}?view=files">📁 Soubory</a><a href="/projects/{{ project.id }}?view=settings">⚙ Nastavení a zdroje</a><a href="/library">▦ Knihovna účtu</a><a href="/">⌂ Nástěnka</a></div></div>
+<div id="mobile-more" class="mobile-more-menu"><div class="mobile-more-card"><div class="mobile-more-head"><div class="project-karel"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>{{ project.name }}</b><span>Další části projektu</span></div></div><button class="pencil-btn" onclick="toggle('mobile-more')">×</button></div><a href="/projects/{{ project.id }}?view=docs">Zadání a obchodní cíle</a><a href="/projects/{{ project.id }}?view=components">▦ Komponenty · ve vývoji</a><a href="/projects/{{ project.id }}?view=releases">↗ Release · ve vývoji</a><a href="/projects/{{ project.id }}?view=testing">◇ Testování · ve vývoji</a><a href="/projects/{{ project.id }}?view=history">↺ Historie</a><a href="/projects/{{ project.id }}?view=files">📁 Soubory</a><a href="/projects/{{ project.id }}?view=settings">⚙ Nastavení a zdroje</a><a href="/library">▦ Knihovna účtu</a><a href="/">⌂ Nástěnka</a></div></div>
 <script>
 fetch('/engine/status').then(r=>r.json()).then(d=>{const e=document.getElementById('engineBadge');if(!e)return;e.closest('.source-health')?.classList.add(d.ok?'ok':'bad');e.textContent=d.ok?'Engine online':'Engine problém';e.title=d.detail||''}).catch(()=>{});
 const box=document.getElementById('messages'); if(box){requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});}

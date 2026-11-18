@@ -164,3 +164,65 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .chat-continuation button{border-color:#d9e3cf;background:#f7faf0;color:#3f640a;font-weight:700}
 .chat-continuation span{line-height:1.5}
 @media(max-width:760px){.chat-continuation{margin-left:12px}}
+
+
+/* Karel UX: six-screen navigation and persistent contextual assistant.
+   Deliberately additive; existing working forms, chat and project views remain intact. */
+.karel-primary-menu{gap:7px;margin-top:17px}
+.karel-primary-menu>a{min-height:49px;align-items:center;grid-template-columns:34px minmax(0,1fr);grid-template-rows:1fr;padding:9px 11px}
+.karel-primary-menu>a .karel-nav-icon{grid-row:1;display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#edf1e8;color:#53604d;font-size:10px;font-weight:800;letter-spacing:-.02em}
+.karel-primary-menu>a b{font-size:13px;line-height:1.3;font-weight:600;min-width:0}
+.karel-primary-menu>a.active .karel-nav-icon{background:#9ec415;color:#17200b}
+.karel-side-footer{display:grid;gap:8px}
+.karel-side-footer>a{font-size:12px}
+.project-v2 .content-view .view-head h2{font-size:25px;line-height:1.25}
+.project-v2 .content-view .view-head p,.project-v2 .content-view .fresh-detail-body p{font-size:13px;line-height:1.65}
+.project-v2 .content-view input,.project-v2 .content-view select,.project-v2 .content-view textarea{font-size:14px}
+.project-v2 .content-view label{font-size:13px}
+.project-v2 .content-view .fresh-summary,.project-v2 .content-view .workboard-card{font-size:13px}
+.project-v2 .project-app.with-context-chat{grid-template-columns:250px minmax(0,1fr) 330px}
+.project-v2 .project-app.with-context-chat .project-content{min-width:0;overflow-y:auto}
+.karel-workspace-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px 22px;border-bottom:1px solid #dde2da;background:#fff;position:sticky;top:0;z-index:5}
+.karel-workspace-tabs>a,.karel-workspace-tabs .karel-more summary{padding:8px 11px;border-radius:9px;color:#596158;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.karel-workspace-tabs>a:hover,.karel-workspace-tabs .karel-more summary:hover{background:#edf2e7}
+.karel-workspace-tabs>a.active{background:#ecf4d8;color:#32400b}
+.karel-workspace-tabs .karel-more{position:relative}
+.karel-workspace-tabs .karel-more>a{display:block;padding:8px 12px;font-size:12px;background:#fff}
+.karel-workspace-tabs .karel-more[open]{background:#fff;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.08)}
+.karel-quick-panel{display:flex;flex-direction:column;min-height:0;background:#fff;border-left:1px solid #dde2da;overflow:hidden}
+.karel-quick-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:18px 15px;border-bottom:1px solid #dde2da}
+.karel-quick-header strong,.karel-quick-header small{display:block}
+.karel-quick-header strong{font-size:15px}
+.karel-quick-header small{font-size:11px;color:#6f776f;margin-top:3px}
+.karel-quick-header>a{font-size:11px;font-weight:700;color:#557000;white-space:nowrap}
+.karel-quick-messages{flex:1;min-height:140px;overflow-y:auto;padding:13px 12px;background:#f6f8f5}
+.karel-quick-message{border:1px solid #dde2da;background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.karel-quick-message.from-user{background:#eef5dc}
+.karel-quick-message>b{display:block;color:#556a17;font-size:11px;margin-bottom:4px}
+.karel-quick-text,.karel-quick-text p,.karel-quick-empty,.karel-quick-pending{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.karel-quick-text p{margin:0 0 7px}
+.karel-quick-text p:last-child{margin-bottom:0}
+.karel-quick-pending{background:#f5f0e4;padding:9px 11px;border-radius:9px}
+.karel-quick-pending a{font-weight:700;text-decoration:underline}
+.karel-quick-form{padding:12px;background:#fff;border-top:1px solid #dde2da}
+.karel-quick-form textarea{font-size:13px;min-height:76px;resize:vertical}
+.karel-quick-form-actions{display:flex;justify-content:space-between;align-items:center;gap:7px;margin-top:8px}
+.karel-quick-form-actions span{font-size:10px;color:#6f776f}
+.karel-quick-readonly{padding:12px;font-size:12px;color:#6f776f}
+@media(max-width:1150px){
+  .project-v2 .project-app.with-context-chat{grid-template-columns:230px minmax(0,1fr)}
+  .project-v2 .project-app.with-context-chat .karel-quick-panel{grid-column:2;max-height:420px;border-top:1px solid #dde2da}
+  .project-page.project-v2{height:auto;min-height:100vh;overflow:visible}
+  .project-v2 .project-app.with-context-chat{height:auto;min-height:100vh}
+  .project-v2 .project-app.with-context-chat .project-sidebar{grid-row:1 / 3}
+}
+@media(max-width:760px){
+  .project-v2 .project-app.with-context-chat{display:block}
+  .project-v2 .project-app.with-context-chat .project-sidebar{display:none}
+  .project-v2 .project-app.with-context-chat .project-content{overflow:visible}
+  .karel-workspace-tabs{padding:10px;gap:3px;position:static;overflow-x:auto;flex-wrap:nowrap}
+  .karel-workspace-tabs>a,.karel-workspace-tabs .karel-more summary{font-size:11px;padding:8px}
+  .karel-quick-panel{min-height:350px;max-height:510px;margin:10px 10px 95px;border:1px solid #dde2da;border-radius:15px}
+  .karel-primary-menu>a b{font-size:13px}
+  .project-v2 .content-view .view-head h2{font-size:21px}
+}
