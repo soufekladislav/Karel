@@ -3,3 +3,14 @@ PassengerAppRoot "/home2/lauhannq/ai-coder.freshcrackers.cz"
 PassengerBaseURI "/"
 PassengerPython "/home2/lauhannq/virtualenv/ai-coder.freshcrackers.cz/3.11/bin/python"
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+# Defense in depth if the application directory is under Apache DocumentRoot.
+# Actual Exon DocumentRoot and public accessibility must still be tested.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^(?:storage|tmp|\.git)(?:/|$) - [F,L,NC]
+</IfModule>
+<IfModule mod_authz_core.c>
+<FilesMatch "^(?:\.env(?:\..*)?|karel2\.db(?:-.*)?|.*\.(?:sqlite|sqlite3)|.*\.log)$">
+Require all denied
+</FilesMatch>
+</IfModule>
