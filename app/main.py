@@ -27,7 +27,7 @@ from .services.orchestrator import orchestrate
 from .services.write_planner import plan_write_request, is_complex_project_brief
 from .services.engine import chat as engine_chat, health as engine_health, EngineError
 from .services.continuation import likely_truncated, continuation_request
-from .services.source_resolver import resolve_message_sources
+from .services.source_resolver import resolve_message_sources, fetch_public_manifest
 from .services.app_manifest import build_app_manifest
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
@@ -169,17 +169,11 @@ def startup():
 
 @app.get('/healthz')
 def healthz():
+    # This endpoint is public: never expose DB/host exceptions or admin state.
     state = bootstrap_state()
-    status = 200 if state.get('ok') else 503
-    return JSONResponse({
-        'app': settings.app_name,
-        'version': APP_VERSION,
-        'ok': bool(state.get('ok')),
-        'database': bool(state.get('database')),
-        'schema': bool(state.get('schema')),
-        'admin_seeded': bool(state.get('admin')),
-        'error': state.get('error'),
-    }, status_code=status)
+    ok = bool(state.get('ok'))
+    return JSONResponse({'ok': ok, 'status': 'ready' if ok else 'unavailable'},
+                        status_code=200 if ok else 503)
 
 def ctx(request, user=None, **extra):
     # One project switcher is available in the same sidebar on every authenticated page.
@@ -1145,11 +1139,8 @@ def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Se
     if not (url.startswith('https://') or url.startswith('http://')):
         return redirect_project(p.id,error='Manifest musí mít adresu začínající http:// nebo https://.')
     try:
-        with httpx.Client(timeout=15,follow_redirects=True) as client:
-            r=client.get(url,headers={'User-Agent':'Karel/2.0 Manifest Reader'})
-            r.raise_for_status()
-            if len(r.content)>1024*1024: raise ValueError('Manifest je větší než 1 MB.')
-            data=r.json()
+        # Same HTTPS/allowlist/public-IP/redirect safeguards as chat source resolution.
+        data=fetch_public_manifest(url)
         body=json.dumps(data,ensure_ascii=False,indent=2)
         row=db.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind=='manifest').order_by(ProjectMemory.id.desc()))
         if row:
