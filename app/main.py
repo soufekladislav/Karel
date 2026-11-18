@@ -20,7 +20,7 @@ from sqlalchemy import select, or_, func
 
 from .config import settings
 from .database import Base, engine, get_db, SessionLocal
-from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Message, Task, ProjectFile, ProjectMemory, ProjectEvent, LibraryItem, ProjectStage
+from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Message, Task, ProjectFile, ProjectMemory, ProjectEvent, LibraryItem, ProjectStage, GitHubRepoLink
 from .auth import hash_password, verify_password, current_user
 from .services.context_builder import build_context
 from .services.orchestrator import orchestrate
@@ -35,6 +35,7 @@ from .services.actions import execute_pending_action, dismiss_pending_action, pa
 from .services.files import save_upload, absolute_path, create_bundle, save_library_upload, absolute_library_path
 from .services.attachment_reader import attachments_context
 from .services import fresh_key
+from .services.github_connector import GitHubReader, GitHubSyncError, validate_repository
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .bootstrap import initialize_app, bootstrap_state
 
@@ -1164,3 +1165,61 @@ def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Se
 @app.get('/engine/status')
 async def engine_status(request:Request,db:Session=Depends(get_db)):
     require_user(request,db); ok,detail=await engine_health(); return JSONResponse({'ok':ok,'detail':detail})
+
+
+# GitHub P1 – manual read-only repo snapshot, no writes to external GitHub.
+@app.get('/projects/{project_id}/github', response_class=HTMLResponse)
+def github_project_page(request: Request, project_id: int, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    p = get_project_or_404(db, u, project_id)
+    link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    try:
+        snap = json.loads(link.snapshot_json) if link and link.snapshot_json else {}
+    except (TypeError, ValueError):
+        snap = {}
+    task_counts = {status: db.scalar(select(func.count(Task.id)).where(
+        Task.project_id == p.id, Task.status == status)) or 0 for status in STATUS_LABELS}
+    return templates.TemplateResponse('github.html', ctx(
+        request, u, project=p, view='github', link=link, snapshot=snap,
+        task_counts=type('TaskCounts', (), task_counts)(),
+        can_manage=bool(is_superadmin(u) and can_manage_project(db, u, p)),
+        github_allowed=bool(settings.github_allowed_owners.strip()),
+        notice=request.query_params.get('notice', '')[:300],
+        error=request.query_params.get('error', '')[:300],
+    ))
+
+
+@app.post('/projects/{project_id}/github/sync')
+def github_project_sync(request: Request, project_id: int,
+                        repository: str = Form(...), db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    p = get_project_or_404(db, u, project_id, manage=True)
+    if not is_superadmin(u):
+        raise HTTPException(403, 'Připojení GitHub repozitáře smí měnit pouze superadmin.')
+    link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    try:
+        repo = validate_repository(repository, settings.github_allowed_owners)
+        with GitHubReader(token=settings.github_read_token) as reader:
+            snapshot = reader.snapshot(repo, settings.github_allowed_owners)
+    except GitHubSyncError as exc:
+        if link:
+            link.last_error = str(exc)[:350]
+            db.commit()
+        return RedirectResponse(
+            '/projects/' + str(p.id) + '/github?error=' + quote(str(exc)[:300]), 303
+        )
+    if not link:
+        link = GitHubRepoLink(project_id=p.id, repository_full_name=snapshot['repository'])
+        db.add(link)
+    link.repository_full_name = snapshot['repository']
+    link.snapshot_json = json.dumps(snapshot, ensure_ascii=False)
+    link.last_synced_at = datetime.utcnow()
+    link.last_error = None
+    link.updated_at = datetime.utcnow()
+    db.add(ProjectEvent(project_id=p.id, user_id=u.id,
+                        event_type='github_readonly_sync',
+                        detail='Read-only GitHub snapshot: ' + snapshot['repository'] +
+                               ' @ ' + snapshot['fetched_at']))
+    db.commit()
+    return RedirectResponse('/projects/' + str(p.id) +
+                            '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
