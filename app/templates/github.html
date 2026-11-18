@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="project-app">
+  <aside class="project-sidebar">{% include '_sidebar.html' %}</aside>
+  <section class="project-content">
+    <div class="container">
+      <header class="view-head"><div><div class="eyebrow">Projekt · integrace</div>
+        <h1>GitHub – import a synchronizace</h1>
+        <p>Pouze čtení. GitHub je zdrojem pravdy; Karel ukládá časově označený snímek. Import nemění Issues ani Projects.</p>
+      </div></header>
+      {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
+      {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
+      <div class="fresh-summary">
+        <strong>{{ link.repository_full_name if link else 'Repozitář zatím není připojen' }}</strong>
+        <span>Poslední úspěšná synchronizace: {{ link.last_synced_at.strftime('%d.%m.%Y %H:%M UTC') if link and link.last_synced_at else 'neproběhla' }}</span>
+        {% if link and snapshot.get('html_url') %}<a href="{{ snapshot.html_url }}" target="_blank" rel="noopener noreferrer">Otevřít GitHub</a>{% endif %}
+      </div>
+      {% if link and link.last_error %}<div class="project-alert error">Poslední chyba: {{ link.last_error }}</div>{% endif %}
+      {% if can_manage and github_allowed %}
+      <div class="fresh-detail-body">
+        <form method="post" action="/projects/{{ project.id }}/github/sync">
+          <label>Vlastník/repozitář <input name="repository" maxlength="201" value="{{ link.repository_full_name if link else '' }}" placeholder="soufekladislav/Karel" required></label>
+          <p>Pro privátní repozitáře musí správce nastavit serverový token jen pro čtení; nikdy jej nezadávej do formuláře.</p>
+          <button class="btn primary" type="submit">Načíst / synchronizovat z GitHubu</button>
+        </form>
+      </div>
+      {% elif can_manage %}
+        <p>GitHub import je vypnutý, dokud správce nepovolí vlastníky repozitářů (GITHUB_ALLOWED_OWNERS).</p>
+      {% else %}
+        <p>Připojení repozitáře a synchronizaci může v této verzi provést pouze superadministrátor.</p>
+      {% endif %}
+      {% if link and snapshot %}
+      <div class="fresh-summary">
+        <strong>Importované záznamy</strong>
+        <span>{{ snapshot.counts.issues_loaded }} Issues · {{ snapshot.counts.prs_loaded }} PR · {{ snapshot.counts.projects_loaded }} GitHub Projects · {{ snapshot.counts.workflow_runs }} běhů CI</span>
+      </div>
+      <details class="fresh-detail" open><summary>Issues <span>{{ snapshot.counts.open_issues }} otevřených</span></summary>
+        <div class="fresh-detail-body">
+          {% for issue in snapshot.issues %}
+          <p><a href="{{ issue.url }}" target="_blank" rel="noopener noreferrer">#{{ issue.number }} – {{ issue.title }}</a> · {{ issue.state }} · {{ issue.updated_at or '' }}</p>
+          {% else %}<p>Žádná Issues ve staženém snímku.</p>{% endfor %}
+          {% if snapshot.partial.issues %}<p>Seznam je omezen na první dávku. Pro kompletní import je potřeba stránkování.</p>{% endif %}
+        </div>
+      </details>
+      <details class="fresh-detail"><summary>Pull Requesty <span>{{ snapshot.counts.open_prs }} otevřených</span></summary>
+        <div class="fresh-detail-body">{% for pr in snapshot.pull_requests %}
+          <p><a href="{{ pr.url }}" target="_blank" rel="noopener noreferrer">#{{ pr.number }} – {{ pr.title }}</a> · {{ pr.state }}</p>
+        {% else %}<p>Žádné PR.</p>{% endfor %}</div>
+      </details>
+      <details class="fresh-detail"><summary>GitHub Projects <span>{{ snapshot.projects_v2_status }}</span></summary>
+        <div class="fresh-detail-body">
+          {% for board in snapshot.projects_v2 %}
+          <h3><a href="{{ board.url }}" target="_blank" rel="noopener noreferrer">{{ board.title }}</a></h3>
+          <p>{{ board.items|length }} položek{% if board.partial %} (neúplné; další stránka){% endif %}</p>
+          {% else %}<p>Nebyla načtena žádná Project board. Stav: {{ snapshot.projects_v2_status }}. Oprávnění Projects v2 se ověřuje zvlášť; může jít o board mimo tento repozitář.</p>{% endfor %}
+        </div>
+      </details>
+      <details class="fresh-detail"><summary>Vývoj a CI <span>{{ snapshot.actions_status }}</span></summary>
+        <div class="fresh-detail-body">
+          <p>Výchozí větev: {{ snapshot.default_branch }} · poslední push: {{ snapshot.last_push_at or 'není uveden' }}</p>
+          {% for run in snapshot.workflow_runs %}
+          <p>{% if run.url %}<a href="{{ run.url }}" target="_blank" rel="noopener noreferrer">{{ run.name }}</a>{% else %}{{ run.name }}{% endif %} – {{ run.status }} / {{ run.conclusion or 'čeká' }}</p>
+          {% else %}<p>Žádné běhy nebo nemáme přístup k Actions.</p>{% endfor %}
+          <p>Dokumentace v repozitáři: {{ snapshot.documentation_paths|length }} nalezených cest.</p>
+        </div>
+      </details>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
