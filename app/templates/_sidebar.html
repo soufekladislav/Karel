@@ -43,5 +43,5 @@
   {% if project %}<a href="/projects/{{ project.id }}?view=settings">Nastavení tohoto projektu</a>{% endif %}
   <a href="/account">Můj účet</a>
   {% if user.role=='superadmin' or user.email=='soufek@freshcrackers.cz' %}<a href="/admin">Admin konzole</a>{% endif %}
-  <a href="/logout" class="side-logout">Odhlásit se</a>
+  <form method="post" action="/logout" class="logout-form"><button type="submit" class="side-logout">Odhlásit se</button></form>
 </div>
