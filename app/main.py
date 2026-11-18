@@ -36,6 +36,7 @@ from .services.files import save_upload, absolute_path, create_bundle, save_libr
 from .services.attachment_reader import attachments_context
 from .services import fresh_key
 from .services.github_connector import GitHubReader, GitHubSyncError, validate_repository
+from .services.github_snapshot_store import upsert_snapshot
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .bootstrap import initialize_app, bootstrap_state
 
@@ -1208,18 +1209,6 @@ def github_project_sync(request: Request, project_id: int,
         return RedirectResponse(
             '/projects/' + str(p.id) + '/github?error=' + quote(str(exc)[:300]), 303
         )
-    if not link:
-        link = GitHubRepoLink(project_id=p.id, repository_full_name=snapshot['repository'])
-        db.add(link)
-    link.repository_full_name = snapshot['repository']
-    link.snapshot_json = json.dumps(snapshot, ensure_ascii=False)
-    link.last_synced_at = datetime.utcnow()
-    link.last_error = None
-    link.updated_at = datetime.utcnow()
-    db.add(ProjectEvent(project_id=p.id, user_id=u.id,
-                        event_type='github_readonly_sync',
-                        detail='Read-only GitHub snapshot: ' + snapshot['repository'] +
-                               ' @ ' + snapshot['fetched_at']))
-    db.commit()
+    upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
     return RedirectResponse('/projects/' + str(p.id) +
                             '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
