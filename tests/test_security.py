@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.config import settings
+from app.services.security_selfcheck import collect_security_checks
 from app.main import healthz
 from app.services.source_resolver import require_allowed_manifest_host, _validate_public_url, fetch_public_manifest, _can_read_internal_manifest
 from app.services.files import create_bundle
@@ -43,6 +44,14 @@ class ManifestSecurityTests(unittest.TestCase):
         with patch('app.services.source_resolver._fetch_public_text', return_value=('[]', 'application/json')):
             with self.assertRaisesRegex(ValueError, 'JSON objekt'):
                 fetch_public_manifest('https://freshcrackers.cz/manifest.json')
+
+    def test_admin_selfcheck_reports_status_without_exposing_secrets(self):
+        fake = SimpleNamespace(secret='change-me', https_only=False, manifest_allowed_hosts='')
+        result = collect_security_checks(fake, {'database': False, 'schema': False, 'error': 'sensitive db url'})
+        self.assertTrue(any(x['state'] == 'warning' for x in result['checks']))
+        self.assertTrue(any(x['state'] == 'unverified' for x in result['checks']))
+        self.assertNotIn('sensitive db url', str(result))
+        self.assertNotIn('change-me', str(result))
 
     def test_internal_manifest_remains_superadmin_only(self):
         self.assertFalse(_can_read_internal_manifest(SimpleNamespace(role='user', email='any@example.com')))
