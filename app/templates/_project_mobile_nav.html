@@ -1,0 +1,23 @@
+{# One mobile navigation shared by project screens, including GitHub. #}
+<nav class="project-mobile-nav" aria-label="Mobilní navigace projektu">
+  <a class="{% if view=='chat' %}active{% endif %}" href="/projects/{{ project.id }}?view=chat{% if active_chat %}&chat_id={{ active_chat.id }}{% endif %}" {% if view=='chat' %}aria-current="page"{% endif %}><span>CH</span>Chat</a>
+  <a class="{% if view=='docs' %}active{% endif %}" href="/projects/{{ project.id }}?view=docs" {% if view=='docs' %}aria-current="page"{% endif %}><span>Z</span>Zadání</a>
+  <a class="{% if view=='github' %}active{% endif %}" href="/projects/{{ project.id }}/github" {% if view=='github' %}aria-current="page"{% endif %}><span>GH</span>GitHub</a>
+  <a class="{% if view in ['development','tasks','releases','testing','outputs','history','files','components'] %}active{% endif %}" href="/projects/{{ project.id }}?view=development"><span>PL</span>Pipeline</a>
+  <button type="button" aria-controls="mobile-more" onclick="toggle('mobile-more')"><span>•••</span>Více</button>
+</nav>
+<div id="mobile-more" class="mobile-more-menu"><div class="mobile-more-card">
+  <div class="mobile-more-head">
+    <div class="project-karel"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>{{ project.name }}</b><span>Další části projektu</span></div></div>
+    <button type="button" class="pencil-btn" onclick="toggle('mobile-more')" aria-label="Zavřít nabídku">×</button>
+  </div>
+  <a href="/projects/{{ project.id }}?view=docs">Zadání a obchodní cíle</a>
+  <a href="/projects/{{ project.id }}?view=components">Komponenty · ve vývoji</a>
+  <a href="/projects/{{ project.id }}?view=releases">Release · ve vývoji</a>
+  <a href="/projects/{{ project.id }}?view=testing">Testování · ve vývoji</a>
+  <a href="/projects/{{ project.id }}?view=history">Historie</a>
+  <a href="/projects/{{ project.id }}?view=files">Soubory</a>
+  <a href="/projects/{{ project.id }}?view=settings">Nastavení projektu</a>
+  <a href="/library">Knihovna účtu</a>
+  <a href="/">Moje projekty</a>
+</div></div>
