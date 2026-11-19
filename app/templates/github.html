@@ -8,7 +8,9 @@
       <header class="view-head"><div><div class="eyebrow">ZDROJ PROJEKTU · POUZE ČTENÍ</div>
         <h1>GitHub</h1>
         <p>Repozitář, otevřené požadavky, Pull Requesty a stav testů. Karel zatím GitHub pouze načítá, nic do něj nezapisuje.</p>
-      </div></header>
+      </div>
+      {% if can_import_portfolio %}<div class="view-head-actions"><a class="btn secondary" href="/github/import">Importovat projekty z GitHubu</a></div>{% endif %}
+      </header>
       {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
       {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
       <section class="karel-github-connection {{ github_status.kind }}" aria-live="polite">
@@ -46,9 +48,9 @@
         </form>
       </div>
       {% elif can_manage %}
-        <p>GitHub import je vypnutý, dokud správce nepovolí vlastníky repozitářů (GITHUB_ALLOWED_OWNERS).</p>
+        <p>Pro připojení repozitáře je nutné povolit vlastníka v nastavení GitHub konektoru. <a href="/github/import">Otevřít import projektů</a>.</p>
       {% else %}
-        <p>Připojení repozitáře a synchronizaci může v této verzi provést pouze superadministrátor.</p>
+        <p>GitHub repozitář můžeš zatím prohlížet, pokud byl připojen. Samostatné přihlášení uživatele ke GitHubu připravujeme; přístup k cizím repozitářům není povolen.</p>
       {% endif %}
       {% if link and snapshot and github_status.kind in ('synced','error') %}
       <section class="karel-github-metrics" aria-label="Počty ze snímku GitHubu">
