@@ -368,7 +368,7 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
         counts={status: db.scalar(select(func.count(Task.id)).where(Task.project_id==p.id, Task.status==status)) or 0 for status in STATUS_LABELS}
         link=github_links.get(p.id)
         gh=github_connection_state(link,github_enabled)
-        next_step=project_next_step(spec,counts,gh,alerts)
+        next_step=project_next_step(spec,counts,gh,alerts,mode=mode)
         overview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,175,
                        'Obchodní cíl projektu zatím není popsán.')
         dashboard_projects.append({
@@ -480,7 +480,8 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     stage_alerts=workflow_alerts(stages)
     github_link=db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
     github_status=github_connection_state(github_link, bool(settings.github_allowed_owners.strip()))
-    project_focus=project_next_step(spec,task_counts,github_status,stage_alerts)
+    project_focus=project_next_step(spec,task_counts,github_status,stage_alerts,
+        mode=project_mode(spec.get('project_type'),github_linked=bool(github_link)))
     project_goal_preview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,
                                220, 'Prober s Karlem, čeho chceš dosáhnout.')
     project_mode_name=project_mode(spec.get('project_type'), github_linked=bool(github_link))
