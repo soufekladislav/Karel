@@ -378,9 +378,10 @@ def build_context(
             from ..models import GitHubRepoLink
             from .github_connector import prompt_summary
             import json
+from .github_snapshot_codec import decode_snapshot
             link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == project.id))
             if link and link.snapshot_json:
-                snapshot = json.loads(link.snapshot_json)
+                snapshot = decode_snapshot(link.snapshot_json)
                 parts.append(prompt_summary(snapshot))
         except (ValueError, TypeError):
             parts.append('GitHub snapshot nelze načíst; neodvozuj z něj stav projektu.')
