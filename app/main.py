@@ -456,6 +456,13 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
                                220, 'Doplň účel a obchodní cíl projektu.')
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
+    project_has_activity = bool(
+        any(str(spec.get(key) or '').strip() for key in
+            ('purpose', 'business_goal', 'functional_goal', 'project_scope', 'project_plan'))
+        or any(t.status != 'archived' for t in tasks)
+        or any(st.status != 'planned' for st in stages)
+        or document_memories or outputs
+    )
     capabilities=[
         {'name':'Projektový chat','status':'active','label':'Aktivní'},
         {'name':'Více chatů a archiv','status':'active','label':'Aktivní'},
@@ -472,7 +479,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     return templates.TemplateResponse('project.html', ctx(request,u,project=p,selectable_projects=selectable_projects,chats=chats,archived_chats=archived_chats,active_chat=active,messages=messages,can_continue=bool(messages and messages[-1].role=='assistant' and not proposals and not (messages[-1].content or '').startswith('[[ENGINE_UNAVAILABLE]]')),reply_may_be_truncated=bool(messages and messages[-1].role=='assistant' and likely_truncated(messages[-1].content)),tasks=tasks,task_counts=task_counts,files=files,current_files=current_files,outputs=outputs,file_map=file_map,memories=memories,manifests=manifests,events=events,library_count=library_count,capabilities=capabilities,view=view,
         project_role=role,project_role_label=ROLE_LABELS.get(role,role),can_edit=can_edit_project(db,u,p),can_manage=can_manage_project(db,u,p),
         github_status=github_status,github_link=github_link,project_focus=project_focus,
-        project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,
+        project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
         notice=request.query_params.get('notice',''),notice_url=request.query_params.get('notice_url',''),notice_label=request.query_params.get('notice_label','Otevřít'),error=request.query_params.get('error','')))
 
