@@ -62,6 +62,28 @@ class WorkspaceUxTests(unittest.TestCase):
         self.assertIn('project-mobile-nav', nav)
         self.assertIn("view=='github'", nav)
 
+    def test_github_import_is_user_facing_but_server_token_remains_restricted(self):
+        repo_import = (ROOT / 'app' / 'templates' / 'github_import.html').read_text(encoding='utf-8')
+        github = (ROOT / 'app' / 'templates' / 'github.html').read_text(encoding='utf-8')
+        main = (ROOT / 'app' / 'main.py').read_text(encoding='utf-8')
+        admin = (ROOT / 'app' / 'templates' / 'admin.html').read_text(encoding='utf-8')
+        self.assertIn('action="/github/import"', repo_import)
+        self.assertIn('name="map_{{ item.full_name }}"', repo_import)
+        self.assertIn('href="/github/import"', github)
+        self.assertIn("@app.get('/github/import'", main)
+        self.assertIn("@app.post('/github/import')", main)
+        self.assertIn("if not is_superadmin(u):", main)
+        self.assertNotIn('href="/admin/github-import"', admin)
+
+    def test_project_first_run_is_a_conversation_not_forced_form(self):
+        page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
+        main = (ROOT / 'app' / 'main.py').read_text(encoding='utf-8')
+        self.assertIn('karel-starter-options', page)
+        self.assertIn('Připravit zadání s Karlem', page)
+        self.assertIn('<details class="fresh-detail"><summary>Upravit zadání ručně', page)
+        self.assertIn("guide=project-start", page)
+        self.assertIn('guide=project-start', main)
+
     def test_context_chat_retains_screen_and_authoritative_approval(self):
         page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
         main = (ROOT / 'app' / 'main.py').read_text(encoding='utf-8')
