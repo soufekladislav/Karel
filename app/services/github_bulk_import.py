@@ -160,8 +160,10 @@ def apply_import_plan(db, user_id: int, plan: list[dict], selected: list[str], m
                     raise ValueError('Vybraný projekt už má přiřazený GitHub repozitář.')
                 result['attached'] += 1
             elif item['action'] == 'review':
-                result['skipped'] += 1
-                continue
+                raise ValueError(
+                    'Repozitář ' + item['full_name'] +
+                    ' má nejednoznačné mapování. Vyber existující projekt výslovně.'
+                )
             elif item['action'] == 'attach':
                 p = db.get(Project, item['local_project_id'])
                 if not p or p.owner_id != user_id:
