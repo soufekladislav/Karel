@@ -215,12 +215,13 @@ def ctx(request, user=None, **extra):
     sidebar_projects = []
     if user is not None:
         with SessionLocal() as sidebar_db:
-            sidebar_projects = sidebar_db.scalars(
-                select(Project).where(or_(
+            sidebar_query = select(Project)
+            if not is_superadmin(user):
+                sidebar_query = sidebar_query.where(or_(
                     Project.owner_id == user.id,
                     Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
-                )).order_by(Project.name)
-            ).all()
+                ))
+            sidebar_projects = sidebar_db.scalars(sidebar_query.order_by(Project.name)).all()
     return {'request': request, 'user': user, 'app_name': settings.app_name,
             'status_labels': STATUS_LABELS, 'sidebar_projects': sidebar_projects, **extra}
 
@@ -245,7 +246,7 @@ def normalize_relationship(value):
 def project_role(db, user, project):
     if project.owner_id == user.id:
         return "owner"
-    if user.role == "superadmin":
+    if is_superadmin(user):
         return "manager"
     row = db.scalar(select(ProjectMember).where(ProjectMember.project_id==project.id, ProjectMember.user_id==user.id))
     return normalize_access_role(row.role) if row else ""
@@ -355,7 +356,11 @@ def logout(request: Request):
 @app.get('/', response_class=HTMLResponse)
 def dashboard(request: Request, db: Session=Depends(get_db)):
     u = require_user(request, db)
-    q = select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.updated_at.desc(), Project.id.desc())
+    q = select(Project)
+    if not is_superadmin(u):
+        q = q.where(or_(Project.owner_id==u.id,
+                        Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id))))
+    q = q.order_by(Project.updated_at.desc(), Project.id.desc())
     all_projects = db.scalars(q).all()
     projects = [p for p in all_projects if (p.status or 'active') != 'archived']
     archived_projects = [p for p in all_projects if (p.status or 'active') == 'archived']
@@ -445,7 +450,12 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     if view not in allowed_views: view='chat'
     if view == 'github':
         return RedirectResponse(f'/projects/{p.id}/github', 303)
-    selectable_projects=db.scalars(select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.name)).all()
+    selectable_query=select(Project)
+    if not is_superadmin(u):
+        selectable_query=selectable_query.where(or_(
+            Project.owner_id==u.id,
+            Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id))))
+    selectable_projects=db.scalars(selectable_query.order_by(Project.name)).all()
     chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==False).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
     archived_chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==True).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
     if not chats:
