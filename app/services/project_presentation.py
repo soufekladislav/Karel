@@ -70,8 +70,8 @@ def github_connection_state(link, owners_configured: bool) -> dict[str, str]:
                 raise ValueError("Missing snapshot")
     except (ValueError, TypeError):
         return {
-            "kind": "pending", "label": "Snímek není ověřen",
-            "detail": "Záznam synchronizace existuje, ale chybí platný snímek dat.",
+            "kind": "pending", "label": "Uložená data je nutné obnovit",
+            "detail": "GitHub synchronizace proběhla, ale uložený snímek je neúplný nebo poškozený. Po aktualizaci Karla znovu spusť Načíst aktuální stav; Issues a PR v GitHubu zůstávají beze změny.",
         }
     return {
         "kind": "synced", "label": "Synchronizováno",
