@@ -548,3 +548,47 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .karel-github-disclaimer{font-size:13px;color:#687666;line-height:1.65}
 .karel-github-shortcuts details{margin:14px 0 0}
 @media(max-width:760px){.karel-github-shortcuts{padding:14px}.karel-github-links{grid-template-columns:1fr}}
+
+/* Fresh Core read-only operational data (no cosmetic redesign). */
+.karel-live-source{background:#fff;border:1px solid #dce4d8;border-radius:15px;padding:22px 24px;margin:22px 0}
+.karel-live-source-head{display:flex;justify-content:space-between;align-items:center;gap:15px}
+.karel-live-source-head h3{font-size:19px;margin:6px 0 3px}
+.karel-live-source-head p{font-size:12px;color:#6e7b70;margin:0}
+.karel-live-source-head form{margin:0;flex-shrink:0}
+.karel-source-truth{font-size:12px!important;line-height:1.7!important;color:#647366!important;padding:10px 0}
+.karel-freshcore-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.karel-freshcore-metrics>div{padding:14px 12px;border:1px solid #e2eadd;background:#f6f9f2;border-radius:10px;min-width:0}
+.karel-freshcore-metrics b{display:block;overflow-wrap:anywhere;font-size:21px;line-height:1.5}
+.karel-freshcore-metrics span{display:block;font-size:11px;color:#647466;line-height:1.5}
+.karel-live-source>p{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.karel-freshcore-form{display:grid;gap:12px;margin:16px 0}
+.karel-freshcore-form label{display:grid;gap:7px;font-size:13px;font-weight:650}
+.karel-freshcore-form input{width:100%;border:1px solid #ccd8c7;background:#f8faf6;padding:12px;border-radius:9px}
+.karel-freshcore-form small{font-size:11px;color:#6b766a;line-height:1.7}
+.karel-freshcore-form button{justify-self:start}
+.karel-connector-warning{border-left:3px solid #b88738;padding:11px 14px;background:#fff9ec;color:#625742!important;border-radius:5px}
+.karel-connector-disconnect{background:#fafbf8;border:1px solid #e5eadf;border-radius:12px;padding:14px 17px;margin:18px 0}
+.karel-connector-disconnect summary{font-size:13px;font-weight:700;cursor:pointer}
+.karel-connector-disconnect p{font-size:12px;line-height:1.7;color:#6f776b}
+.karel-connector-disconnect form{margin:8px 0}
+.karel-confirm-project-delete{display:grid;gap:10px;margin:0}
+.karel-confirm-project-delete label{display:grid;gap:5px;font-size:12px;line-height:1.6}
+.karel-confirm-project-delete input{border:1px solid #dfc5c0;border-radius:9px;padding:9px 11px;background:#fff}
+.karel-manageable-files .files-row{grid-template-columns:minmax(190px,2fr) minmax(65px,.65fr) minmax(70px,.65fr) minmax(70px,.65fr) minmax(170px,1.3fr);align-items:center;gap:8px}
+.karel-manageable-files .files-row:not(.head){border-bottom:1px solid #edf0e9;padding:13px 12px}
+.karel-manageable-files .files-row a{font-size:13px;color:#405e19}
+.karel-manageable-files .files-row span{font-size:12px;overflow-wrap:anywhere}
+.karel-file-actions{display:flex;gap:7px;flex-wrap:wrap}
+.karel-file-actions form{margin:0}
+.karel-file-actions .btn{padding:8px 10px;font-size:11px}
+@media(max-width:1000px){.karel-freshcore-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){
+ .karel-live-source{padding:17px}
+ .karel-live-source-head{flex-direction:column;align-items:flex-start}
+ .karel-live-source-head form,.karel-live-source-head .btn{width:100%}
+ .karel-freshcore-form button{justify-self:stretch}
+ .karel-manageable-files .files-row{display:flex;flex-wrap:wrap;gap:9px}
+ .karel-manageable-files .files-row.head{display:none}
+ .karel-manageable-files .files-row>span:first-child{flex-basis:100%}
+ .karel-manageable-files .files-row>span:last-child{margin-left:auto}
+}
