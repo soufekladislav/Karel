@@ -1298,8 +1298,10 @@ def github_project_sync(request: Request, project_id: int,
                             '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
 
 
-# Administration: import local project shells for each GitHub repository.
-# All mutations require superadmin, an explicit confirmation and a short-lived token.
+# GitHub project onboarding is user-facing; until per-user GitHub OAuth is
+# implemented, the shared-server-token import must remain superadmin-only.
+# Legacy /admin links are retained for safe backwards compatibility.
+@app.get('/github/import', response_class=HTMLResponse)
 @app.get('/admin/github-import', response_class=HTMLResponse)
 def github_import_preview(request: Request, db: Session = Depends(get_db)):
     u = require_user(request, db)
@@ -1317,14 +1319,18 @@ def github_import_preview(request: Request, db: Session = Depends(get_db)):
         except GitHubSyncError as exc:
             error = str(exc)[:350]
     csrf_token = URLSafeTimedSerializer(settings.secret, salt='karel-github-import-v1').dumps({'user_id': u.id})
+    projects = db.scalars(select(Project).where(Project.owner_id == u.id).order_by(Project.name)).all()
+    linked_project_ids = {item.project_id for item in db.scalars(select(GitHubRepoLink)).all()}
+    available_projects = [p for p in projects if p.id not in linked_project_ids]
     return templates.TemplateResponse('github_import.html', ctx(
         request, u, repositories=repositories, plan=plan, truncated=truncated,
         error=error, csrf_token=csrf_token, has_token=bool(settings.github_read_token),
-        allowed_owners=settings.github_allowed_owners,
+        allowed_owners=settings.github_allowed_owners, available_projects=available_projects,
         notice=request.query_params.get('notice', '')[:300],
     ))
 
 
+@app.post('/github/import')
 @app.post('/admin/github-import')
 async def github_import_apply(request: Request, db: Session = Depends(get_db)):
     u = require_user(request, db)
@@ -1343,18 +1349,25 @@ async def github_import_apply(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(400, 'Import nebyl výslovně potvrzen.')
     selected = [str(v) for v in form.getlist('repositories')]
     if not selected:
-        return RedirectResponse('/admin/github-import?notice=' + quote('Nic nebylo vybráno.'), 303)
+        return RedirectResponse('/github/import?notice=' + quote('Nic nebylo vybráno.'), 303)
     if len(selected) > 75:
         raise HTTPException(400, 'Zpracuj nejvýše 75 repozitářů v jedné dávce.')
     try:
         with GitHubReader(token=settings.github_read_token) as reader:
             repositories, _ = discover_repositories(reader, settings.github_allowed_owners)
         plan = prepare_import_plan(db, u.id, repositories)
-        result = apply_import_plan(db, u.id, plan, selected)
+        mapping = {}
+        for repo in selected:
+            mapped = str(form.get('map_' + repo) or '').strip()
+            if mapped:
+                if not mapped.isdecimal():
+                    raise ValueError('Ruční mapování musí obsahovat platné ID projektu.')
+                mapping[repo] = int(mapped)
+        result = apply_import_plan(db, u.id, plan, selected, mapping=mapping)
     except (GitHubSyncError, ValueError) as exc:
         db.rollback()
         raise HTTPException(400, str(exc)[:350])
     message = (f'Vytvořeno {result["created"]}, propojeno {result["attached"]}, '
                f'již propojeno {result["linked"]}, vyžaduje kontrolu {result["skipped"]}. '
                'Pro načtení Issues a PR spusť synchronizaci u jednotlivých projektů.')
-    return RedirectResponse('/admin/github-import?notice=' + quote(message), 303)
+    return RedirectResponse('/github/import?notice=' + quote(message), 303)
