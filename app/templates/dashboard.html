@@ -56,6 +56,17 @@
   </details>
   {% endif %}
 
+  {% if not projects %}
+  <section class="karel-portfolio-onboarding">
+    <h2>Co chceš s Karlem vyřešit?</h2>
+    <p>Začni jednoduše. Karel pomůže rozpracovat zadání, rozdělit práci a hlídat další kroky.</p>
+    <div class="karel-onboarding-actions">
+      <button type="button" class="btn primary" onclick="toggle('new-project')">Popsat nový projekt</button>
+      {% if can_import_portfolio %}<a class="btn secondary" href="/github/import">Mám projekty na GitHubu</a>{% endif %}
+    </div>
+    <small>WordPress můžeš začít řešit jako projekt; přímé úpravy webu vyžadují připravované napojení Fresh Core.</small>
+  </section>
+  {% endif %}
   <section class="karel-portfolio-section" id="projekty">
     <div class="karel-portfolio-toolbar">
       <div><h2>Aktivní projekty</h2><p>Každý projekt má vlastní zadání, úkoly a stav zdrojů.</p></div>
@@ -76,10 +87,17 @@
           </div>
           <span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>
         </div>
+        {% if item.has_goal %}
         <div class="karel-project-goal">
-          <span>Obchodní cíl</span>
+          <span>Proč projekt existuje</span>
           <p>{{ item.goal_preview }}</p>
         </div>
+        {% else %}
+        <div class="karel-project-brief-missing">
+          <span>Projekt čeká na první zadání</span>
+          <a href="/projects/{{ p.id }}?view=chat&guide=project-start">Připravit s Karlem →</a>
+        </div>
+        {% endif %}
         <div class="karel-project-meta" aria-label="Stav úkolů">
           <span><b>{{ item.open }}</b> otevřených úkolů</span>
           {% if item.counts.waiting_user %}<span class="is-attention"><b>{{ item.counts.waiting_user }}</b> čeká na tebe</span>{% endif %}
