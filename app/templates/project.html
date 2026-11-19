@@ -136,7 +136,10 @@
           <span class="eyebrow">KROK 1 · PLUGIN FRESH CORE</span>
           <h3>Abych mohl poznat tvůj WordPress, potřebuji bezpečné propojení.</h3>
           <p>Fresh Core je plugin, který připravuje data WordPressu pro oprávněné aplikace Fresh Crackers. Po instalaci tě provedu ověřením spojení. Nemusíš nic programovat.</p>
-          <a href="https://www.freshcrackers.cz/produkt/fresh-core/" target="_blank" rel="noopener noreferrer" class="btn primary">Získat Fresh Core →</a>
+          <div class="karel-freshcore-onboard-actions">
+            <a href="#fresh-core-pripojeni" class="btn primary">Fresh Core už mám → Připojit</a>
+            <a href="https://www.freshcrackers.cz/produkt/fresh-core/" target="_blank" rel="noopener noreferrer" class="btn secondary">Potřebuji nainstalovat Fresh Core</a>
+          </div>
           <small>Otevírá se stránka produktu Fresh Core. Samotná instalace ještě nepropojí web s Karlem.</small>
         </div>
         <ol class="karel-wordpress-install-guide">
@@ -145,7 +148,7 @@
           <li><b>Aktivuj Fresh Core</b><span>Po aktivaci otevři Fresh Core, vyhledej čtecí Access Key a připoj jej níže v Karlovi.</span></li>
         </ol>
       </section>
-      <section class="karel-live-source">
+      <section class="karel-live-source" id="fresh-core-pripojeni">
         <header class="karel-live-source-head">
           <div><div class="eyebrow">ČTENÍ Z WORDPRESSU · FRESH CORE</div>
             <h3>{{ core_state.label }}</h3>
@@ -182,9 +185,13 @@
             </div>
           </details>
         {% else %}
-          <p>K propojení potřebujeme čtecí klíč <strong>Fresh Core Access Key</strong> z administrace tvého WordPressu. Karel ho bezpečně zašifruje a ověří skutečné REST API, než začne tvrdit, že web zná.</p>
-          {% if not core_state.vault_ready %}
-          <p class="karel-connector-warning">Zabezpečené úložiště klíčů ještě není nakonfigurované. Správce Karla musí na Exonu nastavit FRESH_CORE_VAULT_KEY. Dokud chybí, Karel žádný klíč nepřijme.</p>
+          <p>K propojení potřebujeme pouze <strong>REST klíč pro čtení</strong> ze sekce Fresh Core → Konektory a oprávnění ve WordPressu „REST konektor: Povolit“. Nepoužívej Write Key, účetní klíč ani URL manifestu. Karel klíč na serveru šifruje a ověřuje skutečné čtecí REST API.</p>
+          {% if not core_state.vault_ready or not core_state.hosts_ready %}
+          <p class="karel-connector-warning"><strong>Na WordPressu není potřeba plugin znovu instalovat.</strong> Čtení zatím blokuje nastavení Karla na Exonu.
+            {% if not core_state.vault_ready %}Chybí zabezpečené úložiště klíčů (FRESH_CORE_VAULT_KEY).{% endif %}
+            {% if not core_state.hosts_ready %}Chybí seznam povolených domén WordPressu (FRESH_CORE_ALLOWED_HOSTS).{% endif %}
+            Dokud správce nezajistí obě podmínky, Karel nebude přijímat přístupové klíče.
+          </p>
           {% elif can_manage %}
           <form class="karel-freshcore-form" method="post" action="/projects/{{ project.id }}/fresh-core/connect">
             <label>Fresh Core Access Key – pouze pro čtení
