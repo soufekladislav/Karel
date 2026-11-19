@@ -145,10 +145,75 @@
           <li><b>Aktivuj Fresh Core</b><span>Po instalaci plugin zapni. Ověřené propojení s Karlem dokončíme v navazující integraci.</span></li>
         </ol>
       </section>
+      <section class="karel-live-source">
+        <header class="karel-live-source-head">
+          <div><div class="eyebrow">ČTENÍ Z WORDPRESSU · FRESH CORE</div>
+            <h3>{{ core_state.label }}</h3>
+            {% if core_state.last_synced_at %}<p>Poslední úspěšné načtení: {{ core_state.last_synced_at }}</p>{% endif %}
+          </div>
+          {% if core_state.kind == 'synced' and can_edit %}
+          <form method="post" action="/projects/{{ project.id }}/fresh-core/refresh">
+            <button type="submit" class="btn primary">Načíst aktuální data</button>
+          </form>
+          {% endif %}
+        </header>
+        {% if core_state.snapshot %}
+          {% set fc = core_state.snapshot %}
+          <p class="karel-source-truth">Toto jsou skutečně načtená data Fresh Core, ne automatická analýza bezpečnosti nebo potvrzení správnosti webu. Zápisy z Karla do WordPressu jsou vypnuté.</p>
+          <div class="karel-freshcore-metrics">
+            <div><b>{{ fc.wordpress_version }}</b><span>WordPress</span></div>
+            <div><b>{{ fc.active_plugin_count }}</b><span>Aktivní pluginy</span></div>
+            <div><b>{{ fc.menu_count }}</b><span>Menu webu</span></div>
+            <div><b>{{ fc.elementor_document_count }}</b><span>Elementor dokumenty</span></div>
+          </div>
+          <p><strong>{{ fc.site_name }}</strong> · {{ fc.site_url }} · Fresh Core {{ fc.plugin_version }}</p>
+          <details class="fresh-detail">
+            <summary>Co Karel skutečně načetl?</summary>
+            <div class="fresh-detail-body">
+              <p>PHP {{ fc.php_version }} · WooCommerce {{ fc.woocommerce_version or 'nenalezeno' }} · šablona {{ fc.theme.name }} ({{ fc.theme.version }})</p>
+              <h4>Obsah a typy záznamů</h4>
+              {% for post_type in fc.post_types %}
+              <p>{{ post_type.label or post_type.name }} – {% for status,count in post_type.counts.items() %}{{ status }}: {{ count }} {% endfor %}</p>
+              {% else %}<p>Fresh Core zatím neposkytl přehled obsahu.</p>{% endfor %}
+              <h4>Aktivní pluginy (maximálně 80)</h4>
+              {% for plugin in fc.active_plugins %}
+              <p>{{ plugin.name }} – {{ plugin.version }}</p>
+              {% endfor %}
+            </div>
+          </details>
+        {% else %}
+          <p>K propojení potřebujeme čtecí klíč <strong>Fresh Core Access Key</strong> z administrace tvého WordPressu. Karel ho bezpečně zašifruje a ověří skutečné REST API, než začne tvrdit, že web zná.</p>
+          {% if not core_state.vault_ready %}
+          <p class="karel-connector-warning">Zabezpečené úložiště klíčů ještě není nakonfigurované. Správce Karla musí na Exonu nastavit FRESH_CORE_VAULT_KEY. Dokud chybí, Karel žádný klíč nepřijme.</p>
+          {% elif can_manage %}
+          <form class="karel-freshcore-form" method="post" action="/projects/{{ project.id }}/fresh-core/connect">
+            <label>Fresh Core Access Key – pouze pro čtení
+              <input name="access_key" type="password" required autocomplete="off" maxlength="300" placeholder="Klíč z Fresh Core → Konektory">
+            </label>
+            <small>Zadává se sem, nikdy do chatu. Klíč nebude zobrazen zpět; po ověření ho Karel uloží šifrovaně.</small>
+            <button class="btn primary" type="submit">Ověřit spojení a načíst web</button>
+          </form>
+          {% else %}
+          <p>Ověřovací klíč může připojit pouze vlastník nebo správce projektu.</p>
+          {% endif %}
+        {% endif %}
+        {% if core_state.has_key and can_manage %}
+        <details class="karel-connector-disconnect">
+          <summary>Odpojit WordPress od Karla</summary>
+          <p>Odpojíme lokální klíč a uložený snímek. Pro úplné zneplatnění klíče jej obnov také přímo v administraci Fresh Core ve WordPressu.</p>
+          <form method="post" action="/projects/{{ project.id }}/fresh-core/disconnect"
+                onsubmit="return confirm('Odebrat uložené propojení a snímek Fresh Core z tohoto projektu?')">
+            <input type="hidden" name="confirmed" value="disconnect">
+            <button type="submit" class="btn danger small">Odpojit Fresh Core</button>
+          </form>
+        </details>
+        {% endif %}
+      </section>
       {% include '_project_journey.html' %}
-      <section class="karel-connector-truth"><strong>Stav propojení: dosud neověřeno</strong>
-        <p>Karel ještě nemá dokončený konektor pro automatické čtení a zápisy na web. Můžeš s ním teď bezpečně připravovat zadání a návrhy úkolů; skutečné změny na WordPressu se nespouštějí.</p>
-        <a class="btn secondary" href="/projects/{{ project.id }}?view=chat&guide=wp-start">Připravit první úkol</a>
+      <section class="karel-connector-truth">
+        <strong>Úpravy webu zatím vyžadují samostatné schválení a dokončení zápisového konektoru.</strong>
+        <p>Karel může analyzovat načtený stav a připravovat návrhy. Samotná změna na WordPressu se z tohoto projektu ještě neodesílá.</p>
+        <a class="btn secondary" href="/projects/{{ project.id }}?view=chat&guide=wp-start">Připravit další úkol</a>
       </section>
     </div>
     {% elif view == 'docs' %}
@@ -282,11 +347,14 @@
       {% if can_manage %}<section class="settings-block danger-zone"><div class="settings-block-head"><div><h3>Životní cyklus projektu</h3><p>Projekt můžeš archivovat. Trvale smazat ho lze až z archivu.</p></div></div><div class="lifecycle-actions">{% if project.status == 'archived' %}<form method="post" action="/projects/{{ project.id }}/archive"><input type="hidden" name="archived" value="0"><button class="btn secondary small">↺ Obnovit projekt</button></form><form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Opravdu trvale smazat celý projekt včetně chatů, úkolů a souborů?')"><button class="btn danger small">⌫ Trvale smazat</button></form>{% else %}<form method="post" action="/projects/{{ project.id }}/archive" onsubmit="return confirm('Archivovat projekt?')"><input type="hidden" name="archived" value="1"><button class="btn secondary small">▣ Archivovat projekt</button></form>{% endif %}</div></section>{% endif %}
       <div class="source-grid">
         <section class="source-card active-source"><div class="source-top"><div><span class="source-icon">{ }</span><h3>Manifest projektu / aplikace</h3></div><span class="cap-status {% if manifests %}active{% else %}planned{% endif %}">{% if manifests %}Aktivní{% else %}Nepřipojen{% endif %}</span></div><p>Manifest dává Karlovi technickou mapu funkcí, capability, verzí, konektorů a omezení. Karel ho používá při analýze, testování a hledání chyb.</p>{% if manifest_info %}<div class="manifest-meta"><div><span>SHA-256</span><code>{{ manifest_info.sha256 }}</code></div><div><span>Velikost</span><b>{{ manifest_info.size_bytes }} B</b></div></div><button class="btn secondary small" type="button" onclick="toggle('manifest-content')">Zobrazit celý uložený manifest</button><div id="manifest-content" class="manifest-content"><pre>{{ manifest_info.content }}</pre></div>{% endif %}{% if can_edit %}<form method="post" action="/projects/{{ project.id }}/manifest" class="source-form"><input type="url" name="url" required value="{{ manifests[0].title if manifests else '' }}" placeholder="https://.../manifest.json"><button class="btn primary small">{% if manifests %}Načíst a uložit znovu{% else %}Načíst a uložit{% endif %}</button></form>{% endif %}</section>
-        <section class="source-card"><div class="source-top"><div><span class="source-icon">WP</span><h3>Fresh Core</h3></div><span class="cap-status planned">V přípravě</span></div><p>Live zdroj stavu WordPressu. Bude poskytovat stránky, pluginy, menu, Elementor dokumenty, diagnostiku, chyby, výsledky testů a další provozní data. Karel tak nebude odkázaný jen na popis uživatele.</p><div class="source-note">Fresh Core není manifest. Manifest popisuje možnosti systému, Fresh Core ukazuje skutečný aktuální stav webu.</div></section>
+        <section class="source-card"><div class="source-top"><div><span class="source-icon">WP</span><h3>Fresh Core</h3></div><span class="cap-status {% if core_state.kind == 'synced' %}active{% else %}planned{% endif %}">{{ core_state.label }}</span></div>
+          <p>Čtecí konektor bezpečně načítá skutečný WordPress snapshot: verze, pluginy, typy obsahu, menu a Elementor. Přenos změn na web není aktivní.</p>
+          {% if core_state.last_synced_at %}<p>Poslední načtení: {{ core_state.last_synced_at }}</p>{% endif %}
+          <a class="btn secondary small" href="/projects/{{ project.id }}?view=website">Spravovat Fresh Core →</a></section>
         <section class="source-card"><div class="source-top"><div><span class="source-icon">▦</span><h3>Knihovna účtu</h3></div><span class="cap-status active">Aktivní</span></div><p>Ověřené komponenty, řešení, dokumentace a další znalosti napříč projekty. Karel může v dialogu nabídnout: „Tohle jsme už řešili jinde, můžeme použít stejné řešení.“</p><a class="btn secondary small" href="/library">Otevřít knihovnu ({{ library_count }})</a></section>
         <section class="source-card"><div class="source-top"><div><span class="source-icon">FK</span><h3>Fresh Key</h3></div><span class="cap-status {% if fresh_link.linked %}active{% else %}testing{% endif %}">{% if fresh_link.linked %}Propojeno{% else %}Dostupné{% endif %}</span></div><p>Společná identitní a projektová vrstva Fresh ekosystému. Karel ji používá k propojení účtu a projektů, ne jako úložiště projektové historie.</p>{% if fresh_key_error %}<div class="source-note warning">{{ fresh_key_error }}</div>{% endif %}</section>
       </div>
-      <h3 class="section-heading">Co Karel aktuálně používá</h3><div class="context-list"><div><b>Projektová mapa</b><span>{% if project_spec %}✓ {{ project_spec|length }} uložených oblastí{% else %}— zatím není doplněna{% endif %}</span></div><div><b>Manifest</b><span>{% if manifests %}✓ uložen v kontextu{% else %}— není připojen{% endif %}</span></div><div><b>Knihovna účtu</b><span>✓ {{ library_count }} položek</span></div><div><b>Fresh Core</b><span>○ v přípravě</span></div><div><b>Projektová paměť</b><span>✓ {{ memories|length }} záznamů</span></div></div>
+      <h3 class="section-heading">Co Karel aktuálně používá</h3><div class="context-list"><div><b>Projektová mapa</b><span>{% if project_spec %}✓ {{ project_spec|length }} uložených oblastí{% else %}— zatím není doplněna{% endif %}</span></div><div><b>Manifest</b><span>{% if manifests %}✓ uložen v kontextu{% else %}— není připojen{% endif %}</span></div><div><b>Knihovna účtu</b><span>✓ {{ library_count }} položek</span></div><div><b>Fresh Core</b><span>{% if core_state.kind == 'synced' %}✓ ověřená čtecí data{% else %}— zatím nepřipojen{% endif %}</span></div><div><b>Projektová paměť</b><span>✓ {{ memories|length }} záznamů</span></div></div>
     </div>
     {% endif %}
   </section>
