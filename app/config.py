@@ -26,6 +26,8 @@ class Settings:
     # Single-admin P1: read-only GitHub credential, never in DB or UI.
     github_read_token = os.getenv('GITHUB_READ_TOKEN', '')
     github_allowed_owners = os.getenv('GITHUB_ALLOWED_OWNERS', '')
+    fresh_core_vault_key = os.getenv('FRESH_CORE_VAULT_KEY', '')
+    fresh_core_allowed_hosts = os.getenv('FRESH_CORE_ALLOWED_HOSTS', '')
     manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()
     source_allowed_hosts = os.getenv('SOURCE_ALLOWED_HOSTS', '').strip()
     max_upload_mb = int(os.getenv('MAX_UPLOAD_MB', '100'))
