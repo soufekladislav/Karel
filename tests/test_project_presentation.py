@@ -44,7 +44,7 @@ class PresentationLogicTests(unittest.TestCase):
         self.assertEqual(project_next_step(spec, {"waiting_user": 2, "failed": 3}, gh)["href"], "tasks")
         self.assertEqual(project_next_step(spec, {"failed": 1}, gh)["kind"], "attention")
         self.assertEqual(project_next_step(spec, {}, gh, [{"days": -1}])["href"], "development")
-        self.assertEqual(project_next_step({}, {}, gh)["href"], "docs")
+        self.assertEqual(project_next_step({}, {}, gh)["href"], "chat")
         self.assertEqual(project_next_step(spec, {}, {"kind": "error"})["href"], "github")
         self.assertEqual(project_next_step(spec, {"working": 1}, gh)["href"], "tasks")
         self.assertEqual(project_next_step(spec, {}, gh)["href"], "chat")
@@ -59,7 +59,7 @@ class PortfolioTemplateTests(unittest.TestCase):
         item = {
             "project": project, "spec": {"project_type": "Webová aplikace"},
             "counts": {"waiting_user": 2, "failed": 0, "testing": 1},
-            "open": 3, "goal_preview": "Řídit a vyhodnocovat vývoj.",
+            "open": 3, "goal_preview": "Řídit a vyhodnocovat vývoj.", "has_goal": True,
             "github_status": {"kind": "unlinked", "label": "Nepřipojeno",
                               "detail": "Žádný repozitář."},
             "next_step": {"label": "Zkontrolovat úkoly čekající na tebe (2)",
