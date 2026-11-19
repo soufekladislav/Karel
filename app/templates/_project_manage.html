@@ -43,6 +43,27 @@
     {% endif %}
   </section>
 
+  <section class="settings-block karel-manage-block" id="project-type">
+    <div class="settings-block-head"><div>
+      <h3>Typ projektu a způsob spolupráce</h3>
+      <p>Karel může používat jiný pracovní postup pro WordPress a pro vývoj s GitHubem. Tato změna nemaže data ani existující propojení.</p>
+    </div></div>
+    {% if can_edit %}
+    <form method="post" action="/projects/{{ project.id }}/mode" class="karel-manage-edit">
+      <label for="manage-project-mode">Co chceš v tomto projektu spravovat?
+        <select id="manage-project-mode" name="project_mode_choice" required>
+          <option value="wordpress" {% if project_mode == 'wordpress' %}selected{% endif %}>WordPress web / WooCommerce e-shop</option>
+          <option value="github" {% if project_mode == 'github' %}selected{% endif %}>Aplikace nebo vlastní vývoj s GitHubem</option>
+          <option value="general" {% if project_mode == 'general' %}selected{% endif %}>Jiný digitální projekt</option>
+        </select>
+      </label>
+      <button class="btn secondary" type="submit">Uložit typ projektu</button>
+    </form>
+    {% else %}
+    <p>Aktuální zaměření: {{ project_mode }}</p>
+    {% endif %}
+  </section>
+
   <section class="settings-block karel-manage-block">
     <div class="settings-block-head"><div>
       <h3>Zadání a další data</h3>
