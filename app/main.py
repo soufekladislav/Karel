@@ -557,10 +557,15 @@ def save_declared_website_url(request: Request, project_id: int,
                               website_url: str=Form(...), db: Session=Depends(get_db)):
     """Store declared WordPress URL without contacting the given host."""
     u=require_user(request, db)
-    p=get_project_or_404(db, u, project_id, write=True)
+    p=get_project_or_404(db, u, project_id, manage=True)
     spec=project_spec(db, p.id)
     if project_mode(spec.get('project_type')) != 'wordpress':
         raise HTTPException(400, 'Adresa webu patří k WordPress projektu.')
+    if fresh_core_state(db, p.id)['has_key']:
+        return RedirectResponse(
+            f'/projects/{p.id}?view=website&error=' +
+            quote('Nejdříve odpoj stávající Fresh Core. Přístupový klíč zůstává vázán na ověřený web.'), 303
+        )
     try:
         url=validate_site_url(website_url)
     except ValueError as exc:
@@ -583,6 +588,80 @@ def save_declared_website_url(request: Request, project_id: int,
     db.commit()
     return RedirectResponse(f'/projects/{p.id}?view=website&notice=' +
                             quote('Adresu webu jsem uložil; propojení se zatím neověřilo.'), 303)
+
+
+# Fresh Core 0.7.8 – only authenticated READ; no WordPress writes.
+@app.post('/projects/{project_id}/fresh-core/connect')
+def fresh_core_connect(request: Request, project_id: int,
+                       access_key: str=Form(...), db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    spec=project_spec(db, project.id)
+    if project_mode(spec.get('project_type'))!='wordpress':
+        raise HTTPException(400, 'Připojení Fresh Core patří k WordPress projektu.')
+    site=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == project.id,
+        ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    if not site or not site.content:
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote('Nejdříve ulož adresu svého WordPress webu.'), 303)
+    try:
+        snapshot=connect_readonly(db, project.id, user.id, site.content, access_key)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_connect_failed', detail='READ handshake failed (no secrets).'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' + quote(str(exc)[:240]), 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Spojení se podařilo ověřit. Karel má nový čtecí snímek WordPressu (bez zápisu).'), 303)
+
+
+@app.post('/projects/{project_id}/fresh-core/refresh')
+def fresh_core_refresh(request: Request, project_id: int,
+                       db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, write=True)
+    if project.status == 'archived':
+        raise HTTPException(409, 'Archivovaný projekt nesynchronizujeme.')
+    stored=fresh_core_state(db, project.id)
+    # Always target the host that was previously authenticated, not an editable
+    # user URL. This prevents sending a stored key to a changed destination.
+    trusted_site=(stored['snapshot'] or {}).get('site_url', '')
+    if not trusted_site:
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote('Nejdříve dokonči propojení Fresh Core.'), 303)
+    try:
+        refresh_readonly(db, project.id, user.id, trusted_site)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_refresh_failed', detail='READ refresh failed (no secrets).'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote(str(exc)[:240]), 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Aktuální stav WordPressu byl znovu načten a bezpečně uložen.'), 303)
+
+
+@app.post('/projects/{project_id}/fresh-core/disconnect')
+def fresh_core_disconnect(request: Request, project_id: int,
+                          confirmed: str=Form(''), db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    if confirmed != 'disconnect':
+        raise HTTPException(400, 'Odpojení musíš výslovně potvrdit.')
+    disconnect_readonly(db, project.id, user.id)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Fresh Core byl od Karla odpojen. Klíč odvolej také v administraci WordPressu.'),303)
 
 
 @app.post('/projects/{project_id}/edit')
