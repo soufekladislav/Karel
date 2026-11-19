@@ -138,6 +138,17 @@
         {% if project_spec.get('project_deadline') %}<span>Cílový termín: {{ project_spec.get('project_deadline') }}</span>{% endif %}
       </div>
 
+      {% if not project_has_activity %}
+      <section class="karel-project-empty-start">
+        <div class="eyebrow">PRVNÍ KROK</div>
+        <h3>Zatím tu nemáme zadání. Nemusíš začínat tabulkami.</h3>
+        <p>Popiš Karlovi svůj web, aplikaci nebo projekt. Pomůže ti zjistit, co už máme, co chybí a co je potřeba udělat jako první. Zápisy do projektu schválíš.</p>
+        <div class="karel-onboarding-actions">
+          <a class="btn primary" href="/projects/{{ project.id }}?view=chat&guide=project-start">Připravit projekt s Karlem</a>
+          <a class="btn secondary" href="/projects/{{ project.id }}?view=docs">Vyplnit zadání ručně</a>
+        </div>
+      </section>
+      {% else %}
       <div class="workboard-grid project-summary-grid">
         <section class="workboard-card"><div class="workboard-card-top"><b>Workflow projektu</b><a href="#workflow">7 etap →</a></div><div class="workboard-number">{{ stages|selectattr('status','equalto','completed')|list|length }}/7 <small>dokončeno</small></div><div class="workboard-stats">{% set active_stages = stages|selectattr('status','equalto','active')|list %}{% if active_stages %}Aktuálně řešíš: {{ active_stages[0].title }}{% else %}Zatím není označena aktivní etapa{% endif %}</div></section>
         <section class="workboard-card"><div class="workboard-card-top"><b>Úkoly a požadavky</b><a href="/projects/{{ project.id }}?view=tasks">Vše →</a></div><div class="workboard-number">{{ task_counts.todo + task_counts.working + task_counts.testing + task_counts.waiting_user + task_counts.failed }} <small>otevřených</small></div><div class="workboard-stats">{{ task_counts.working }} ve vývoji · {{ task_counts.testing }} v testování · {{ task_counts.waiting_user }} čeká na tebe</div></section>
@@ -146,6 +157,8 @@
       </div>
 
       <div class="karel-scope-brief"><div><b>Rozsah projektu</b><p>{{ project_scope_preview }}</p></div><a class="karel-text-link" href="/projects/{{ project.id }}?view=docs">Detail v dokumentaci →</a></div>
+
+      {% endif %}
 
 <section id="workflow" class="workflow-shell compact-workflow">
   <div class="workflow-heading"><div><span class="eyebrow">FRESH DEVELOPMENT STANDARD</span><h3>Projektové workflow · 7 etap</h3><p>Každá etapa má vlastní termín, očekávaný výsledek a podmínky převzetí. Zadání zůstává v dokumentaci, tady řídíme postup a harmonogram.</p></div><a class="btn secondary small" href="/projects/{{ project.id }}?view=chat">Probrat harmonogram v chatu →</a></div>
