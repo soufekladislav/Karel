@@ -95,8 +95,8 @@ def project_next_step(spec: dict, counts: dict, github: dict,
             return {"label": "Prověřit termín projektového workflow",
                     "href": "development", "kind": "attention"}
     if not (spec.get("business_goal") or spec.get("purpose")):
-        return {"label": "Doplnit účel a obchodní cíl",
-                "href": "docs", "kind": "setup"}
+        return {"label": "Představit projekt Karlovi v chatu",
+                "href": "chat", "kind": "setup"}
     if github.get("kind") == "error":
         return {"label": "Prověřit chybu GitHub synchronizace",
                 "href": "github", "kind": "attention"}
