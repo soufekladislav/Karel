@@ -354,8 +354,8 @@ def build_context(
         parts.append(
             'WORDPRESS: Fresh Core stáhneš na https://www.freshcrackers.cz/produkt/fresh-core/. '
             'Návod: Pluginy → Instalace pluginů → Nahrát plugin → aktivovat. '
-            'Karel ještě nemá ověřený Fresh Core read/write konektor; bez něj nesmí '
-            'tvrdit, že web přečetl, upravil nebo publikoval. Nežádej hesla ani tokeny do chatu.'
+            'Karel smí popsat jen skutečně uložený ověřený Fresh Core čtecí snímek (pokud existuje); bez něj nesmí '
+            'tvrdit, že web přečetl. Čtecí API nikdy nepoužívej jako důkaz zápisu nebo publikace. Nežádej hesla ani tokeny do chatu.'
         )
     elif mode == 'github':
         parts.append(
