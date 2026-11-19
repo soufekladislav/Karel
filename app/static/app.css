@@ -533,3 +533,18 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .karel-create-actions{flex-direction:column;align-items:stretch}
 .karel-create-actions .btn{width:100%}
 }
+
+/* GitHub summary: few primary links, full detail stays in GitHub. */
+.karel-github-workspace{max-width:1240px}
+.karel-github-shortcuts{border:1px solid #dfe6d8;background:#fff;border-radius:15px;padding:20px;margin:16px 0}
+.karel-github-shortcuts-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.karel-github-shortcuts-head h2{font-size:18px;margin:0 0 11px}
+.karel-github-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.karel-github-links>div{padding:14px;background:#f8faf5;border:1px solid #e5ebdf;border-radius:12px;min-width:0}
+.karel-github-links h3{font-size:14px;margin:0 0 10px}
+.karel-github-links p{font-size:12px;line-height:1.65;margin:7px 0;overflow-wrap:anywhere}
+.karel-github-links a{color:#446516;font-weight:600}
+.karel-github-links a:hover{text-decoration:underline}
+.karel-github-disclaimer{font-size:13px;color:#687666;line-height:1.65}
+.karel-github-shortcuts details{margin:14px 0 0}
+@media(max-width:760px){.karel-github-shortcuts{padding:14px}.karel-github-links{grid-template-columns:1fr}}
