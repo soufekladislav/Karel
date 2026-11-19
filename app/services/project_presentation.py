@@ -81,7 +81,7 @@ def github_connection_state(link, owners_configured: bool) -> dict[str, str]:
 
 def project_next_step(spec: dict, counts: dict, github: dict,
                       stage_alerts: list | None = None, *,
-                      mode: str = "general") -> dict[str, str]:
+                      mode: str = "general", fresh_connected: bool = False) -> dict[str, str]:
     """One factual, actionable recommendation – no fabricated milestones."""
     if counts.get("waiting_user", 0):
         n = counts["waiting_user"]
@@ -101,9 +101,12 @@ def project_next_step(spec: dict, counts: dict, github: dict,
     if counts.get("working", 0) or counts.get("testing", 0) or counts.get("todo", 0):
         return {"label": "Projít aktuální úkoly a další postup",
                 "href": "tasks", "kind": "normal"}
-    if mode == "wordpress":
-        return {"label": "Začít s Fresh Core a propojením webu",
+    if mode == "wordpress" and not fresh_connected:
+        return {"label": "Připojit Fresh Core a načíst stav webu",
                 "href": "website", "kind": "setup"}
+    if mode == "wordpress" and not (spec.get("business_goal") or spec.get("purpose")):
+        return {"label": "Navrhnout cíl z načtených dat webu",
+                "href": "chat", "kind": "normal"}
     if mode == "github" and github.get("kind") != "synced":
         return {"label": "Připojit GitHub a načíst existující projekt",
                 "href": "github", "kind": "setup"}
