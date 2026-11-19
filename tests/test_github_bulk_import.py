@@ -88,6 +88,55 @@ class BulkImportDbTests(unittest.TestCase):
         self.assertEqual(result2['attached'], 0)
         self.assertEqual(self.db.scalar(select(func.count(Project.id))), 2)
 
+    def test_manual_mapping_preserves_renamed_existing_project(self):
+        existing = self.db.get(Project, self.original_id)
+        existing.name = 'Developer Karel'
+        self.db.commit()
+        plan = prepare_import_plan(self.db, self.user_id, self.repos())
+        self.assertEqual(plan[0]['action'], 'create')  # fuzzy matching forbidden
+        result = apply_import_plan(self.db, self.user_id, plan,
+                                   ['soufekladislav/Karel'],
+                                   mapping={'soufekladislav/Karel': self.original_id})
+        self.assertEqual(result['created'], 0)
+        self.assertEqual(result['attached'], 1)
+        self.assertEqual(self.db.scalar(select(func.count(Project.id))), 1)
+        self.assertEqual(self.db.get(Project, self.original_id).description,
+                         'Původní zadání se musí zachovat.')
+        links = self.db.scalars(select(GitHubRepoLink)).all()
+        self.assertEqual([(x.project_id, x.repository_full_name) for x in links],
+                         [(self.original_id, 'soufekladislav/Karel')])
+
+    def test_manual_mapping_cannot_take_foreign_project(self):
+        another = User(email='someone@example.com', password_hash='x', role='user')
+        self.db.add(another)
+        self.db.flush()
+        foreign = Project(owner_id=another.id, name='Foreign')
+        self.db.add(foreign)
+        self.db.commit()
+        plan = prepare_import_plan(self.db, self.user_id, self.repos())
+        with self.assertRaises(ValueError):
+            apply_import_plan(self.db, self.user_id, plan,
+                              ['soufekladislav/Boban'],
+                              mapping={'soufekladislav/Boban': foreign.id})
+        self.assertEqual(self.db.scalar(select(func.count(GitHubRepoLink.id))), 0)
+
+    def test_cannot_assign_one_project_to_two_repositories(self):
+        plan = prepare_import_plan(self.db, self.user_id, self.repos())
+        with self.assertRaises(ValueError):
+            apply_import_plan(self.db, self.user_id, plan,
+                              ['soufekladislav/Karel', 'soufekladislav/Boban'],
+                              mapping={'soufekladislav/Boban': self.original_id})
+        self.assertEqual(self.db.scalar(select(func.count(GitHubRepoLink.id))), 0)
+
+    def test_manual_mapping_rejects_duplicated_target(self):
+        plan = prepare_import_plan(self.db, self.user_id, self.repos())
+        with self.assertRaises(ValueError):
+            apply_import_plan(self.db, self.user_id, plan,
+                              ['soufekladislav/Karel', 'soufekladislav/Boban'],
+                              mapping={'soufekladislav/Karel': self.original_id,
+                                       'soufekladislav/Boban': self.original_id})
+        self.assertEqual(self.db.scalar(select(func.count(GitHubRepoLink.id))), 0)
+
     def test_unknown_repository_is_rejected_before_writes(self):
         plan = prepare_import_plan(self.db, self.user_id, self.repos())
         with self.assertRaises(ValueError):
