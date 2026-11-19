@@ -54,10 +54,14 @@ def build_app_manifest(db: Session, version: str) -> dict:
             'attachment_content_extraction': 'active', 'zip_source_inspection': 'active', 'project_files': 'active', 'manifest_analysis': 'active', 'manifest_hash': 'active', 'account_library': 'active',
             'context_retrieval': 'active', 'source_priority': 'active', 'implicit_manifest_refresh': 'active', 'url_source_resolver': 'active', 'cross_project_reuse': 'testing',
             'fresh_key': 'active' if fresh_key.configured() else 'available',
-            'github_readonly_manual_sync': 'available' if settings.github_allowed_owners else 'requires_configuration',
+            'github_public_readonly_manual_sync': 'available',
+            'github_private_admin_readonly_sync': 'available' if (settings.github_allowed_owners and settings.github_read_token) else 'requires_configuration',
             'github_projects_v2': 'limited_readonly', 'github_delta_sync': 'planned',
             'github_write_actions': 'planned',
-            'fresh_core_context': 'planned', 'task_history': 'testing', 'release_management': 'planned',
+            'fresh_core_readonly_manual_sync': 'available' if (settings.fresh_core_vault_key and settings.fresh_core_allowed_hosts) else 'requires_configuration',
+            'fresh_core_write': 'planned',
+            'project_file_archive': 'active', 'project_delete_with_fk_cleanup': 'active',
+            'task_history': 'testing', 'release_management': 'planned',
             'workspace_build': 'planned', 'autonomous_coding': 'planned', 'image_vision_analysis': 'planned',
         },
         'project_management': {
@@ -104,7 +108,7 @@ def build_app_manifest(db: Session, version: str) -> dict:
             'temporary_artifacts': 'retention planned',
             'deduplication': 'planned',
         },
-        'limitations': ['fresh_core_live_context_not_active','release_workspace_not_active','autonomous_build_not_active'],
+        'limitations': ['fresh_core_auto_refresh_not_active','fresh_core_write_not_active','github_private_user_oauth_not_active','release_workspace_not_active','autonomous_build_not_active'],
         'superadmin_console': {'restricted': True, 'superadmin': settings.superadmin_email},
     }
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
