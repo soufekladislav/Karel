@@ -671,12 +671,24 @@ def fresh_core_disconnect(request: Request, project_id: int,
 @app.post('/projects/{project_id}/edit')
 def edit_project(request:Request, project_id:int, name:str=Form(...), description:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
-    p.name=name.strip() or p.name
-    p.description=description.strip() or None
+    new_name=(name or '').strip()
+    new_description=(description or '').strip()
+    if not new_name:
+        return RedirectResponse(f'/projects/{p.id}?view=manage&error='+
+                                quote('Název projektu nesmí být prázdný.'),303)
+    if len(new_name)>255 or len(new_description)>2000:
+        return RedirectResponse(f'/projects/{p.id}?view=manage&error='+
+                                quote('Název nebo popis projektu překračuje povolenou délku.'),303)
+    before=p.name
+    p.name=new_name
+    p.description=new_description or None
     p.updated_at=datetime.utcnow()
-    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_updated',detail='Základní informace projektu byly upraveny.'))
+    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_updated',
+                        detail='Údaje projektu byly upraveny; název změněn.' if before!=new_name
+                               else 'Popis nebo základní údaje projektu byly upraveny.'))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?view=manage&notice='+quote('Název a popis projektu byly uloženy.'),303)
+    return RedirectResponse(f'/projects/{p.id}?view=manage&notice='+
+                            quote('Název a popis projektu byly uloženy.'),303)
 
 @app.post('/projects/{project_id}/spec')
 def edit_project_spec(request:Request, project_id:int, purpose:str=Form(''), project_type:str=Form(''), business_goal:str=Form(''), functional_goal:str=Form(''), project_scope:str=Form(''), project_deadline:str=Form(''), project_plan:str=Form(''), db:Session=Depends(get_db)):
