@@ -108,7 +108,8 @@ class GitHubReadTests(unittest.TestCase):
             self.assertEqual(db.scalar(select(func.count(ProjectEvent.id))), 2)
             link = db.scalar(select(GitHubRepoLink))
             import json
-            self.assertEqual(json.loads(link.snapshot_json)["counts"]["issues_loaded"], 2)
+            from app.services.github_snapshot_codec import decode_snapshot
+            self.assertEqual(decode_snapshot(link.snapshot_json)["counts"]["issues_loaded"], 2)
 
 
 
