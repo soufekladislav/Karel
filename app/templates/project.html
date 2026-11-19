@@ -36,14 +36,30 @@
       <div class="chat-quickprompts"><button type="button" onclick="fillPrompt('Shrň aktuální stav projektu a nejbližší kroky.')">Stav projektu</button><button type="button" onclick="fillPrompt('Jaké úkoly jsou otevřené a které mají prioritu?')">Otevřené úkoly</button><button type="button" onclick="fillPrompt('Co víme z dokumentace a jaké informace ještě chybí?')">Dokumentace</button><button type="button" onclick="fillPrompt('Proveď analýzu dosavadního zadání projektu. Rozděl známé a chybějící informace, zkontroluj duplicity vůči existující projektové mapě a polož mi jednu nejdůležitější otázku, než budeš cokoli ukládat.')">Rozpracovat zadání</button></div>
       <div class="messages" id="messages">
         {% for m in messages %}<div class="message {{ m.role }}"><div class="avatar">{% if m.role=='assistant' %}<img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel">{% else %}{{ (user.name or user.email)[:1]|upper }}{% endif %}</div><div class="bubble {% if m.content.startswith('[[ENGINE_UNAVAILABLE]]') %}engine-error-bubble{% endif %}"><div class="who">{% if m.role=='assistant' %}Karel{% else %}Ty{% endif %}</div>{% if m.content.startswith('[[ENGINE_UNAVAILABLE]]') %}<div class="text">AI služba je dočasně nedostupná. Tvoje zpráva je uložená a nemusíš ji psát znovu.</div>{% if can_edit %}<form class="retry-form" method="post" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/retry"><button class="btn secondary small" type="submit">↻ Zkusit znovu</button></form>{% endif %}{% else %}<div class="text md-view">{{ m.content|message_md|safe }}</div>{% endif %}{% for f in file_map.get(m.id,[]) %}<a class="attachment" href="/files/{{ f.id }}">📎 {{ f.name }}</a>{% endfor %}</div></div>
-        {% else %}<div class="welcome compact-welcome"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><h2>Ahoj, jsem Karel.</h2>
+        {% else %}<div class="welcome compact-welcome"><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel">
+          {% if project_mode == 'wordpress' %}
+          <h2>Ahoj! Postaráme se o tvůj WordPress.</h2>
+          <p>Řekni, co tě na webu trápí nebo co chceš změnit. Pro bezpečné načítání dat ti pomohu nainstalovat Fresh Core.</p>
+          <div class="karel-starter-options" role="group" aria-label="Jak začít se správou webu">
+            <a class="btn secondary" href="/projects/{{ project.id }}?view=website">Jak nainstalovat Fresh Core</a>
+            <button type="button" onclick="fillPrompt('Chci připravit zadání mého WordPress webu. Zeptej se na cíl webu a problém, který potřebuji vyřešit. Plugin Fresh Core ještě nemáme v Karlovi ověřeně propojený; nepředstírej kontrolu webu ani zápis.')">Co mám na webu zlepšit?</button>
+          </div>
+          {% elif project_mode == 'github' %}
+          <h2>Ahoj! Pomůžu ti řídit vývoj.</h2>
+          <p>Nemusíš mi přepisovat celý GitHub. Začneme připojením repozitáře a potom společně rozhodneme, co je potřeba udělat.</p>
+          <div class="karel-starter-options" role="group" aria-label="Jak začít s GitHubem">
+            <a class="btn secondary" href="/projects/{{ project.id }}/github">Otevřít propojení GitHubu</a>
+            <button type="button" onclick="fillPrompt('Chci řídit vývoj této aplikace. Nejprve zkontroluj, jaké skutečně synchronizované informace máme z GitHubu. Pokud chybí, naveď mě k připojení. Pak navrhni jeden první úkol bez neodsouhlasených změn.')">Pomoz mi s prvním úkolem</button>
+          </div>
+          {% else %}
+          <h2>Ahoj, jsem Karel.</h2>
           <p>Nemusíš vyplňovat složitý formulář. Řekni mi, co chceš vyřešit, a společně připravíme první krok.</p>
           <div class="karel-starter-options" role="group" aria-label="S čím začít">
-            <button type="button" onclick="fillPrompt('Chci spravovat svůj WordPress web. Zeptej se na jeho účel a problémy, zjisti jaké zdroje můžeme bezpečně načíst a navrhni první kroky. Přímou editaci webu neslibuj bez funkčního propojení Fresh Core.')">Mám WordPress web</button>
-            <button type="button" onclick="fillPrompt('Chci řídit vývoj aplikace nebo webu. Pomoz mi s obchodním cílem, zadáním a dalšími kroky. Zeptej se na jednu nejdůležitější chybějící informaci a změny zapisuj až po mém schválení.')">Řídím vývoj projektu</button>
-            <button type="button" onclick="fillPrompt('Potřebuji zorganizovat práci na tomto projektu. Shrň, co už opravdu víme z uložených dat, co chybí a co mám udělat nejdříve. Nevydávej návrhy za hotové změny.')">Chci udělat pořádek</button>
+            <button type="button" onclick="fillPrompt('Chci zorganizovat práci na tomto projektu. Zjisti, co máme uložené, a ptej se postupně na nejdůležitější chybějící informace.')">Připravit zadání</button>
+            <button type="button" onclick="fillPrompt('Chci vyjasnit obchodní cíl a termíny tohoto projektu. Navrhni mi konkrétní další krok ke schválení.')">Naplánovat postup</button>
           </div>
-          <small>V chatu můžeš začít jednou větou. Uložené zadání a schválení změn zůstávají pod tvou kontrolou.</small>
+          {% endif %}
+          <small>Zatím připravujeme zadání a návrhy. Externí změny provedeme až po dokončení propojení a tvém schválení.</small>
         </div>{% endfor %}
         {% if proposals %}
         {% set choice = pending_action_data.get(proposals[0].id,{}) if proposals|length == 1 else {} %}
@@ -92,6 +108,37 @@
       <header class="view-head"><div><div class="eyebrow">Projektové zdroje</div><h2>GitHub</h2><p>GitHub má vlastní aktuální obrazovku se stavem připojení a posledním snímkem dat.</p></div></header>
       <a class="btn primary" href="/projects/{{ project.id }}/github">Otevřít GitHub projektu</a>
     </div>
+    {% elif view == 'website' %}
+    <div class="content-view fresh-clean karel-website-view">
+      <header class="view-head"><div><div class="eyebrow">MŮJ WORDPRESS WEB</div>
+        <h2>Propojíme tvůj web s Karlem</h2>
+        <p>Nemusíš být vývojář. Nejdřív připravíme bezpečný přístup k datům webu, změny budou vždy vyžadovat tvůj souhlas.</p>
+      </div><div class="view-head-actions"><a class="btn secondary" href="/projects/{{ project.id }}?view=chat&guide=wp-start">Probrat s Karlem</a></div></header>
+      {% if website_url %}
+      <p class="karel-website-declared"><strong>Tvůj web:</strong> {{ website_url }} <small>Adresa zadaná při vytvoření projektu; dostupnost ani vlastnictví jsme zatím neověřili.</small></p>
+      {% else %}
+      <p class="karel-website-declared"><strong>Adresu webu zatím neznáme.</strong> Napiš ji Karlovi v chatu a společně doplníme zadání.</p>
+      {% endif %}
+      <section class="karel-wordpress-install">
+        <div class="karel-wordpress-install-main">
+          <span class="eyebrow">KROK 1 · PLUGIN FRESH CORE</span>
+          <h3>Abych mohl poznat tvůj WordPress, potřebuji bezpečné propojení.</h3>
+          <p>Fresh Core je plugin, který připravuje data WordPressu pro oprávněné aplikace Fresh Crackers. Po instalaci tě provedu ověřením spojení. Nemusíš nic programovat.</p>
+          <a href="https://www.freshcrackers.cz/produkt/fresh-core/" target="_blank" rel="noopener noreferrer" class="btn primary">Získat Fresh Core →</a>
+          <small>Otevírá se stránka produktu Fresh Core. Samotná instalace ještě nepropojí web s Karlem.</small>
+        </div>
+        <ol class="karel-wordpress-install-guide">
+          <li><b>Získej soubor ZIP</b><span>Otevři stránku Fresh Core a dokonči získání digitálního pluginu.</span></li>
+          <li><b>Nahraj jej do WordPressu</b><span>Ve správě svého webu otevři Pluginy → Instalace pluginů → Nahrát plugin.</span></li>
+          <li><b>Aktivuj Fresh Core</b><span>Po instalaci plugin zapni. Ověřené propojení s Karlem dokončíme v navazující integraci.</span></li>
+        </ol>
+      </section>
+      {% include '_project_journey.html' %}
+      <section class="karel-connector-truth"><strong>Stav propojení: dosud neověřeno</strong>
+        <p>Karel ještě nemá dokončený konektor pro automatické čtení a zápisy na web. Můžeš s ním teď bezpečně připravovat zadání a návrhy úkolů; skutečné změny na WordPressu se nespouštějí.</p>
+        <a class="btn secondary" href="/projects/{{ project.id }}?view=chat&guide=wp-start">Připravit první úkol</a>
+      </section>
+    </div>
     {% elif view == 'docs' %}
     <div class="content-view fresh-clean"><header class="view-head"><div><div class="eyebrow">Projektová dokumentace</div><h2>Zadání a dokumentace</h2><p>Tady je hlavní zdroj pravdy pro projekt. Přehled projektu zobrazuje pouze stručné souhrny a harmonogram.</p></div></header>
       <div class="fresh-summary"><strong>{{ project.name }}</strong><span>{{ document_memories|length }} záznamů · zdroj: projektová paměť</span><a class="btn secondary small" href="/projects/{{ project.id }}?view=development#workflow">Otevřít workflow projektu</a></div>
@@ -138,7 +185,7 @@
         {% if project_spec.get('project_deadline') %}<span>Cílový termín: {{ project_spec.get('project_deadline') }}</span>{% endif %}
       </div>
 
-      {% if not project_has_activity %}
+      {% if not project_has_activity and project_mode == 'general' %}
       <section class="karel-project-empty-start">
         <div class="eyebrow">PRVNÍ KROK</div>
         <h3>Zatím tu nemáme zadání. Nemusíš začínat tabulkami.</h3>
@@ -158,6 +205,9 @@
 
       <div class="karel-scope-brief"><div><b>Rozsah projektu</b><p>{{ project_scope_preview }}</p></div><a class="karel-text-link" href="/projects/{{ project.id }}?view=docs">Detail v dokumentaci →</a></div>
 
+      {% endif %}
+      {% if project_mode in ('wordpress','github') %}
+      {% include '_project_journey.html' %}
       {% endif %}
 
 <section id="workflow" class="workflow-shell compact-workflow">
@@ -241,9 +291,15 @@ fetch('/engine/status').then(r=>r.json()).then(d=>{const e=document.getElementBy
 const box=document.getElementById('messages'); if(box){requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});}
 const fi=document.querySelector('.composer input[type=file]'),hint=document.querySelector('.composer .hint'); if(fi&&hint){fi.addEventListener('change',()=>hint.textContent=fi.files.length?`${fi.files.length} příloh připraveno`:'JSON, log, screenshot, ZIP, dokument…')}
 const ta=document.querySelector('.composer textarea');
-if(ta && new URLSearchParams(window.location.search).get('guide')==='project-start' && !ta.value.trim()){
-  ta.value='Pomoz mi připravit zadání tohoto projektu. Nejprve zjisti, co o projektu už máme uložené. Pak se mě zeptej na jednu nejdůležitější chybějící informaci a navrhni stručný plán. Nic neukládej bez mého schválení.';
-  ta.focus();
+if(ta && !ta.value.trim()){
+  const guide=new URLSearchParams(window.location.search).get('guide');
+  const starts={
+    'project-start':'Pomoz mi připravit zadání tohoto projektu. Nejprve zjisti, co už máme uložené. Ptej se vždy na jednu nejdůležitější chybějící věc. Nic nezapisuj bez mého schválení.',
+    'wp-start':'Chci spravovat svůj WordPress s Karlem. Proveď mě instalací Fresh Core a připravme účel a obchodní cíle webu. Neověřené připojení ani publikaci nepředstírej. Na nic se neptej najednou.',
+    'github-start':'Chci řídit vývoj projektu s GitHubem. Nejprve ověř, zda už máme skutečně synchronizovaná data; pokud ne, poraď mi s připojením. Poté připravme zadání a první schvalovaný úkol.',
+    'github-review':'Shrň skutečný stav GitHubu, který máme uložený u tohoto projektu. Uveď, co je aktuální a co nelze ověřit, potom navrhni další krok.'
+  };
+  if(guide && starts[guide]){ta.value=starts[guide];ta.focus();}
 }
 if(ta){ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(ta.value.trim()||document.querySelector('.composer input[type=file]')?.files.length){ta.form.requestSubmit();}}});}
 const composer=document.getElementById('chatComposer');
