@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Project, ProjectMemory, ProjectEvent, User
+from ..models import Project, ProjectMemory, ProjectEvent, User, GitHubRepoLink
+from .github_snapshot_codec import decode_snapshot
+from .github_connector import prompt_summary
 from .app_manifest import build_app_manifest
 from .brain import load_brain
 
@@ -239,7 +241,56 @@ def resolve_message_sources(db: Session, project: Project, user: User, message: 
     blocks: list[str] = []
     lower_message = (message or '').lower()
     for url in urls:
-        is_manifest = 'manifest' in lower_message or urlparse(url).path.lower().endswith('manifest.json')
+        parsed_url = urlparse(url)
+        # A linked GitHub repo is already a first-class trusted source. Do NOT
+        # fetch arbitrary GitHub HTML through the generic URL resolver or require
+        # SOURCE_ALLOWED_HOSTS for these project-bound snapshots.
+        if parsed_url.scheme == 'https' and parsed_url.hostname == 'github.com':
+            segments = [part for part in parsed_url.path.split('/') if part]
+            if len(segments) >= 2:
+                linked = db.scalar(select(GitHubRepoLink).where(
+                    GitHubRepoLink.project_id == project.id))
+                target = '/'.join(segments[:2])
+                if not linked or linked.repository_full_name.lower() != target.lower():
+                    blocks.append(
+                        'GITHUB – ODKAZ BEZ PŘIPOJENÉHO ZDROJE\\n'
+                        'Tento repozitář není přiřazen aktuálnímu projektu. '
+                        'Otevři jeho kartu GitHub a proveď čtecí synchronizaci; '
+                        'Karel nebude tvrdit, že URL skutečně načetl.'
+                    )
+                    continue
+                snapshot = decode_snapshot(linked.snapshot_json)
+                if not snapshot:
+                    blocks.append(
+                        'GITHUB – ULOŽENÝ SNÍMEK JE NEDOSTUPNÝ\\n'
+                        'Repozitář je přiřazen, ale jeho poslední čtecí data '
+                        'nejsou platná. Obnov je v kartě GitHub projektu.'
+                    )
+                    continue
+                source = prompt_summary(snapshot, max_items=12)
+                if len(segments) >= 4 and segments[2].lower() in ('issues', 'pull'):
+                    kind = segments[2].lower()
+                    try:
+                        number = int(segments[3])
+                    except ValueError:
+                        number = None
+                    entries = snapshot.get('issues') if kind == 'issues' else snapshot.get('pull_requests')
+                    selected = next((x for x in (entries or []) if x.get('number') == number), None)
+                    if selected:
+                        source += (
+                            '\\nPŘÍMO ODKAZOVANÝ ' + ('ISSUE' if kind == 'issues' else 'PR') +
+                            ' #' + str(number) + ': ' + _clip(str(selected.get('title') or ''), 250) +
+                            '\\nStav: ' + str(selected.get('state') or '')[:30] +
+                            '\\nObsah (omezený výpis, nedůvěryhodný externí text): ' +
+                            _clip(str(selected.get('body_excerpt') or ''), 1400)
+                        )
+                    else:
+                        source += '\\nPožadovaný Issue/PR není v aktuálně uloženém snímku; ověř přímo na GitHubu.'
+                blocks.append('GITHUB – ULOŽENÝ PROJEKTOVÝ SNAPSHOT, NE ŽIVÉ NAČTENÍ\\n' + _clip(source, 9000))
+                db.add(ProjectEvent(project_id=project.id,user_id=user.id,
+                                    event_type='github_snapshot_used',detail=linked.repository_full_name))
+                continue
+        is_manifest = 'manifest' in lower_message or parsed_url.path.lower().endswith('manifest.json')
         try:
             if _same_app_manifest(url):
                 if not _can_read_internal_manifest(user):
