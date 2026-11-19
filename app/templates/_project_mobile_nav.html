@@ -2,7 +2,11 @@
 <nav class="project-mobile-nav" aria-label="Mobilní navigace projektu">
   <a class="{% if view=='chat' %}active{% endif %}" href="/projects/{{ project.id }}?view=chat{% if active_chat %}&chat_id={{ active_chat.id }}{% endif %}" {% if view=='chat' %}aria-current="page"{% endif %}><span>CH</span>Chat</a>
   <a class="{% if view=='docs' %}active{% endif %}" href="/projects/{{ project.id }}?view=docs" {% if view=='docs' %}aria-current="page"{% endif %}><span>Z</span>Zadání</a>
+  {% if project_mode == 'wordpress' %}
+  <a class="{% if view=='website' %}active{% endif %}" href="/projects/{{ project.id }}?view=website" {% if view=='website' %}aria-current="page"{% endif %}><span>WP</span>Web</a>
+  {% else %}
   <a class="{% if view=='github' %}active{% endif %}" href="/projects/{{ project.id }}/github" {% if view=='github' %}aria-current="page"{% endif %}><span>GH</span>GitHub</a>
+  {% endif %}
   <a class="{% if view in ['development','tasks','releases','testing','outputs','history','files','components'] %}active{% endif %}" href="/projects/{{ project.id }}?view=development"><span>PL</span>Pipeline</a>
   <button type="button" aria-controls="mobile-more" onclick="toggle('mobile-more')"><span>•••</span>Více</button>
 </nav>
