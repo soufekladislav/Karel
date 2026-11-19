@@ -338,13 +338,41 @@
     <div class="content-view"><header class="view-head"><div><div class="eyebrow">Historie</div><h2>Co se v projektu dělo</h2><p>Komunikace zůstává v archivech chatů, tady Karel drží stručnou provozní stopu důležitých změn a operací.</p></div></header><div class="timeline">{% for e in events %}<article><div class="timeline-dot"></div><div><small>{{ e.created_at.strftime('%d.%m.%Y %H:%M') if e.created_at else '' }}</small><h3>{{ e.event_type|replace('_',' ')|title }}</h3>{% if e.detail %}<p>{{ e.detail }}</p>{% endif %}</div></article>{% else %}<div class="empty-state">Historie je zatím prázdná.</div>{% endfor %}</div></div>
 
     {% elif view == 'files' %}
-    <div class="content-view"><header class="view-head"><div><div class="eyebrow">Soubory</div><h2>Vstupy, zdroje a výstupy</h2><p>Karel eviduje význam souboru, aby věděl, co je příloha, zdroj, JSON, log nebo výstup.</p></div></header><div class="files-table"><div class="files-row head"><span>Název</span><span>Typ</span><span>Stav</span><span>Velikost</span></div>{% for f in files %}<a class="files-row" href="/files/{{ f.id }}"><span><b>{{ f.name }}</b><small>{{ f.mime_type or 'soubor' }}</small></span><span>{{ f.kind }}</span><span>{{ f.status }}</span><span>{{ (f.size_bytes/1024)|round(1) }} KB</span></a>{% else %}<div class="empty-state">Projekt zatím nemá soubory.</div>{% endfor %}</div></div>
+    <div class="content-view"><header class="view-head"><div><div class="eyebrow">Soubory</div><h2>Vstupy, zdroje a výstupy</h2><p>Karel eviduje význam souboru, aby věděl, co je příloha, zdroj, JSON, log nebo výstup.</p></div></header><div class="files-table karel-manageable-files">
+        <div class="files-row head"><span>Název</span><span>Typ</span><span>Stav</span><span>Velikost</span><span>Správa</span></div>
+        {% for f in files %}
+        <div class="files-row">
+          <span><a href="/files/{{ f.id }}"><b>{{ f.name }}</b></a><small>{{ f.mime_type or 'soubor' }}</small></span>
+          <span>{{ f.kind }}</span><span>{{ 'Archiv' if f.status=='archived' else 'Aktuální' }}</span>
+          <span>{{ (f.size_bytes/1024)|round(1) }} KB</span>
+          <span class="karel-file-actions">
+            {% if can_edit %}
+            <form method="post" action="/files/{{ f.id }}/archive">
+              <input type="hidden" name="archived" value="{{ 0 if f.status=='archived' else 1 }}">
+              <button class="btn secondary small" type="submit">{{ 'Obnovit' if f.status=='archived' else 'Archivovat' }}</button>
+            </form>
+            {% if f.status=='archived' %}
+            <form method="post" action="/files/{{ f.id }}/delete" onsubmit="return confirm('Trvale odstranit archivovaný soubor?')">
+              <button class="btn danger small" type="submit">Smazat</button>
+            </form>
+            {% endif %}
+            {% endif %}
+          </span>
+        </div>
+        {% else %}<div class="empty-state">Projekt zatím nemá soubory.</div>{% endfor %}
+      </div></div>
 
     {% elif view == 'settings' %}
     <div class="content-view">
       <header class="view-head"><div><div class="eyebrow">Nastavení projektu</div><h2>Zdroje informací pro Karla</h2><p>Tady je jasně vidět, odkud Karel čerpá a co mu jednotlivé zdroje pomáhají dělat.</p></div></header>
       <section class="settings-block"><div class="settings-block-head"><div><h3>Základní informace</h3><p>Název a stručný popis projektu.</p></div>{% if can_edit %}<button class="pencil-btn" onclick="toggle('settings-project-edit')">✎</button>{% endif %}</div><div class="settings-read"><b>{{ project.name }}</b><span>{{ project.description or 'Bez popisu' }}</span></div>{% if can_edit %}<div id="settings-project-edit" class="drawer"><form class="form-grid" method="post" action="/projects/{{ project.id }}/edit"><label>Název<input name="name" value="{{ project.name }}" required></label><label>Popis<textarea name="description" rows="3">{{ project.description or '' }}</textarea></label><button class="btn primary">Uložit</button></form></div>{% endif %}</section>
-      {% if can_manage %}<section class="settings-block danger-zone"><div class="settings-block-head"><div><h3>Životní cyklus projektu</h3><p>Projekt můžeš archivovat. Trvale smazat ho lze až z archivu.</p></div></div><div class="lifecycle-actions">{% if project.status == 'archived' %}<form method="post" action="/projects/{{ project.id }}/archive"><input type="hidden" name="archived" value="0"><button class="btn secondary small">↺ Obnovit projekt</button></form><form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Opravdu trvale smazat celý projekt včetně chatů, úkolů a souborů?')"><button class="btn danger small">⌫ Trvale smazat</button></form>{% else %}<form method="post" action="/projects/{{ project.id }}/archive" onsubmit="return confirm('Archivovat projekt?')"><input type="hidden" name="archived" value="1"><button class="btn secondary small">▣ Archivovat projekt</button></form>{% endif %}</div></section>{% endif %}
+      {% if can_manage %}<section class="settings-block danger-zone"><div class="settings-block-head"><div><h3>Životní cyklus projektu</h3><p>Projekt můžeš archivovat. Trvale smazat ho lze až z archivu.</p></div></div><div class="lifecycle-actions">{% if project.status == 'archived' %}<form method="post" action="/projects/{{ project.id }}/archive"><input type="hidden" name="archived" value="0"><button class="btn secondary small">↺ Obnovit projekt</button></form><form class="karel-confirm-project-delete" method="post" action="/projects/{{ project.id }}/delete"
+            onsubmit="return confirm('Smazání je nevratné. Byla ověřena záloha?')">
+          <label>Pro trvalé smazání opiš název projektu <b>{{ project.name }}</b>
+            <input name="confirmation_name" required autocomplete="off" placeholder="Přesný název projektu">
+          </label>
+          <button type="submit" class="btn danger small">Trvale smazat projekt</button>
+        </form>{% else %}<form method="post" action="/projects/{{ project.id }}/archive" onsubmit="return confirm('Archivovat projekt?')"><input type="hidden" name="archived" value="1"><button class="btn secondary small">▣ Archivovat projekt</button></form>{% endif %}</div></section>{% endif %}
       <div class="source-grid">
         <section class="source-card active-source"><div class="source-top"><div><span class="source-icon">{ }</span><h3>Manifest projektu / aplikace</h3></div><span class="cap-status {% if manifests %}active{% else %}planned{% endif %}">{% if manifests %}Aktivní{% else %}Nepřipojen{% endif %}</span></div><p>Manifest dává Karlovi technickou mapu funkcí, capability, verzí, konektorů a omezení. Karel ho používá při analýze, testování a hledání chyb.</p>{% if manifest_info %}<div class="manifest-meta"><div><span>SHA-256</span><code>{{ manifest_info.sha256 }}</code></div><div><span>Velikost</span><b>{{ manifest_info.size_bytes }} B</b></div></div><button class="btn secondary small" type="button" onclick="toggle('manifest-content')">Zobrazit celý uložený manifest</button><div id="manifest-content" class="manifest-content"><pre>{{ manifest_info.content }}</pre></div>{% endif %}{% if can_edit %}<form method="post" action="/projects/{{ project.id }}/manifest" class="source-form"><input type="url" name="url" required value="{{ manifests[0].title if manifests else '' }}" placeholder="https://.../manifest.json"><button class="btn primary small">{% if manifests %}Načíst a uložit znovu{% else %}Načíst a uložit{% endif %}</button></form>{% endif %}</section>
         <section class="source-card"><div class="source-top"><div><span class="source-icon">WP</span><h3>Fresh Core</h3></div><span class="cap-status {% if core_state.kind == 'synced' %}active{% else %}planned{% endif %}">{{ core_state.label }}</span></div>
