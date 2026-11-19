@@ -115,9 +115,21 @@
         <p>Nemusíš být vývojář. Nejdřív připravíme bezpečný přístup k datům webu, změny budou vždy vyžadovat tvůj souhlas.</p>
       </div><div class="view-head-actions"><a class="btn secondary" href="/projects/{{ project.id }}?view=chat&guide=wp-start">Probrat s Karlem</a></div></header>
       {% if website_url %}
-      <p class="karel-website-declared"><strong>Tvůj web:</strong> {{ website_url }} <small>Adresa zadaná při vytvoření projektu; dostupnost ani vlastnictví jsme zatím neověřili.</small></p>
+      <p class="karel-website-declared"><strong>Tvůj web:</strong> {{ website_url }} <small>Adresa zadaná uživatelem; dostupnost ani vlastnictví jsme zatím neověřili.</small></p>
       {% else %}
-      <p class="karel-website-declared"><strong>Adresu webu zatím neznáme.</strong> Napiš ji Karlovi v chatu a společně doplníme zadání.</p>
+      <p class="karel-website-declared"><strong>Adresu webu zatím neznáme.</strong> Doplň ji níže; jde jen o uložení údaje do projektu.</p>
+      {% endif %}
+      {% if can_edit %}
+      <details class="karel-website-url-edit">
+        <summary>{{ 'Upravit adresu webu' if website_url else 'Doplnit adresu webu' }}</summary>
+        <form method="post" action="/projects/{{ project.id }}/website-url">
+          <label>Adresa WordPress webu
+            <input name="website_url" required maxlength="300" inputmode="url" placeholder="mujweb.cz" value="{{ website_url }}">
+          </label>
+          <p>Jde pouze o adresu, kterou uvádíš. Karel bez ověřeného spojení web nenavštěvuje ani nemění.</p>
+          <button type="submit" class="btn primary small">Uložit adresu</button>
+        </form>
+      </details>
       {% endif %}
       <section class="karel-wordpress-install">
         <div class="karel-wordpress-install-main">
@@ -165,6 +177,21 @@
     <div class="content-view" id="project-map">
       <header class="view-head"><div><div class="eyebrow">ŘÍZENÍ PROJEKTU</div><h2>{{ project.name }}</h2><p>Obchodní cíl, aktuální stav a jeden další krok. Podrobné zadání zůstává v dokumentaci.</p></div><div class="view-head-actions"><a class="btn secondary" href="/projects/{{ project.id }}?view=docs">Zadání</a><a class="btn primary" href="/projects/{{ project.id }}?view=chat">Probrat s Karlem</a></div></header>
 
+      {% if project_mode == 'general' and can_edit %}
+      <section class="karel-type-choice">
+        <div><span class="eyebrow">PŘIZPŮSOBIT PROJEKT</span><h3>Co s Karlem řešíš?</h3><p>Vyber cestu. Zachováme zadání i historii a ukážeme kroky podle typu práce.</p></div>
+        <div class="karel-type-actions">
+          <form method="post" action="/projects/{{ project.id }}/mode">
+            <input type="hidden" name="project_mode_choice" value="wordpress">
+            <button class="btn secondary" type="submit">Mám WordPress web</button>
+          </form>
+          <form method="post" action="/projects/{{ project.id }}/mode">
+            <input type="hidden" name="project_mode_choice" value="github">
+            <button class="btn secondary" type="submit">Vyvíjím s GitHubem</button>
+          </form>
+        </div>
+      </section>
+      {% endif %}
       <section class="karel-project-focus" aria-label="Co se právě řeší">
         <div class="karel-focus-goal">
           <span class="karel-focus-label">Obchodní cíl</span>
@@ -181,7 +208,11 @@
         <span>{% if project_spec.get('project_type') %}{{ project_spec.get('project_type') }}{% else %}Typ projektu neuveden{% endif %}</span>
         <span>{{ task_counts.todo + task_counts.working + task_counts.testing + task_counts.waiting_user + task_counts.failed }} otevřených úkolů</span>
         {% if task_counts.waiting_user %}<a class="is-attention" href="/projects/{{ project.id }}?view=tasks">{{ task_counts.waiting_user }} čeká na tebe →</a>{% endif %}
+        {% if project_mode == 'wordpress' %}
+        <a href="/projects/{{ project.id }}?view=website" class="karel-status-pill pending">WordPress: spojení zatím neověřeno</a>
+        {% else %}
         <a href="/projects/{{ project.id }}/github" class="karel-status-pill {{ github_status.kind }}" title="{{ github_status.detail }}">GitHub: {{ github_status.label }}</a>
+        {% endif %}
         {% if project_spec.get('project_deadline') %}<span>Cílový termín: {{ project_spec.get('project_deadline') }}</span>{% endif %}
       </div>
 
