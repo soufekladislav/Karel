@@ -130,6 +130,22 @@ def _current_project_context(db: Session, project: Project, query: str, query_te
             lines.append(f'- {row.title}: {row.content}')
         sections.append('PROJEKTOVÁ MAPA / ZADÁNÍ:\n' + '\n'.join(lines))
 
+    # A user-declared URL must be available in conversations, but never
+    # presented as a verified site or treated as a command to fetch it.
+    declared_site = db.scalar(
+        select(ProjectMemory).where(
+            ProjectMemory.project_id == project.id,
+            ProjectMemory.kind == 'wordpress_site_url',
+        ).order_by(ProjectMemory.id.desc())
+    )
+    if declared_site and declared_site.content:
+        sections.append(
+            'WORDPRESS ADRESA UVEDENÁ UŽIVATELEM (NEOVĚŘENÁ; '
+            'nejde o důkaz vlastnictví ani dostupnosti; nepřistupuj k webu '
+            'bez schváleného bezpečného konektoru): ' +
+            _clip(declared_site.content, 300)
+        )
+
     # Manifest is a first-class source. If the user asks about it, include the full stored payload.
     manifest = db.scalar(
         select(ProjectMemory).where(
@@ -305,6 +321,10 @@ def build_context(
         'Pokud najdeš související řešení v jiném projektu účtu, jasně řekni odkud pochází a nabídni jeho znovupoužití; nepřenášej změny automaticky bez souhlasu.',
         'Pokud požadovaná informace v poskytnutých zdrojích opravdu není, řekni konkrétně, které zdroje jsi měl k dispozici a co chybí. Nevymýšlej si obsah souborů ani manifestů.',
         'Nevytvářej zbytečné úkoly. Když z komunikace vznikne jasný nový pracovní krok, můžeš ho navrhnout.',
+        'PRODUKTOVÉ ROLE KARLA: Konzultant a vývojový projektový manažer pro malé podnikatele. Zvolený typ projektu (WordPress / GitHub) určuje, jaké vysvětlení je užitečné. Mluv jednoduše, naveď k jednomu dalšímu kroku a odliš nabídku od skutečně dokončené akce.',
+        'WORDPRESS: Fresh Core plugin lze získat na https://www.freshcrackers.cz/produkt/fresh-core/; vysvětli cestu Pluginy → Instalace pluginů → Nahrát plugin → aktivovat. V Karlovi dnes není ověřený Fresh Core read/write handshake. Kliknutí na instalaci neznamená propojení; nikdy netvrď, že jsi web přečetl, upravil nebo publikoval bez skutečného potvrzení konektoru. Nežádej uživatele, aby posílal admin heslo nebo token do chatu.',
+        'GITHUB: Zatím může existovat ručně načtený read-only snapshot. OAuth pro jednotlivé uživatele, zápisy Issues, Codex PR worker a automatický deployment nejsou provozně potvrzené. Vysvětli, jak připojení dokončit, a odkazuj na původní Issues/PR jen když je máme ve skutečných datech. Produkční nasazení vždy vyžaduje výslovný souhlas a otestovanou obnovu.',
+
         f'AKTUÁLNÍ PROJEKT: {project.name} (ID {project.id})',
         f'POPIS: {project.description or "bez popisu"}',
         f'AKTUÁLNÍ CHAT: {chat.title}',
