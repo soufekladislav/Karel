@@ -118,7 +118,7 @@
             {% if item.spec.project_type %}<span class="karel-project-type">{{ item.spec.project_type }}</span>{% endif %}
           </div>
           {% if item.project_mode == 'wordpress' %}
-            <span class="karel-status-pill pending">Web · čeká na propojení</span>
+            <span class="karel-status-pill {{ 'synced' if item.fresh_core_status.kind == 'synced' else 'pending' }}">Web · {{ 'Data načtena' if item.fresh_core_status.kind == 'synced' else 'Čeká na připojení' }}</span>
           {% elif gh.kind != 'setup' %}
             <span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>
           {% endif %}
