@@ -82,7 +82,7 @@ class WorkspaceUxTests(unittest.TestCase):
         self.assertIn('Připravit zadání s Karlem', page)
         self.assertIn('<details class="fresh-detail"><summary>Upravit zadání ručně', page)
         self.assertIn("guide=project-start", page)
-        self.assertIn('guide=project-start', main)
+        self.assertIn("guide={'wordpress':'wp-start','github':'github-start','general':'project-start'}", main)
 
     def test_empty_project_and_library_have_guided_actions(self):
         project = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
