@@ -172,9 +172,7 @@
             <input type="hidden" name="archived" value="0">
             <button type="submit" class="btn secondary small">Obnovit</button>
           </form>
-          <form method="post" action="/projects/{{ p.id }}/delete" onsubmit="return confirm('Opravdu trvale smazat projekt {{ p.name }}?')">
-            <button type="submit" class="btn danger small">Smazat</button>
-          </form>
+          <a class="btn danger small" href="/projects/{{ p.id }}?view=settings">Správa / smazání</a>
         </div>
       </div>
       {% endfor %}
