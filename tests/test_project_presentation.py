@@ -69,6 +69,7 @@ class PortfolioTemplateTests(unittest.TestCase):
             app_name="Karel", user=None,
             request=SimpleNamespace(query_params={}),
             projects=[project], archived_projects=[],
+            github_configured=True,
             dashboard_projects=[item], dashboard_totals={
                 "open": 3, "waiting_user": 2, "failed": 0, "testing": 1},
             deadline_alerts=[],
@@ -160,6 +161,7 @@ class PortfolioTemplateTests(unittest.TestCase):
             app_name="Karel", user=None,
             request=SimpleNamespace(query_params={}),
             projects=[], archived_projects=[], dashboard_projects=[],
+            github_configured=False,
             dashboard_totals={"open": 0, "waiting_user": 0,
                               "failed": 0, "testing": 0},
             deadline_alerts=[],
