@@ -367,3 +367,70 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
   .karel-project-title h3{font-size:17px}
   .karel-project-goal p{font-size:14px}
 }
+
+
+/* Karel UX follow-up – project intake and conversational onboarding, 19 Nov 2026.
+   Reuses existing Fresh cards/buttons and type system; no shadow components. */
+.karel-portfolio-heading-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.karel-project-brief-missing{display:flex;justify-content:space-between;align-items:center;gap:9px;border-top:1px solid #edf0e9;padding-top:9px;font-size:13px;color:#61705f}
+.karel-project-brief-missing a{color:#426910;font-size:12px;font-weight:750;white-space:nowrap}
+.karel-portfolio-onboarding{padding:24px;border:1px solid #d9e5ce;background:#f7faef;border-radius:16px;margin-bottom:24px}
+.karel-portfolio-onboarding h2{font-size:21px;margin:0 0 8px}
+.karel-portfolio-onboarding p{font-size:14px;line-height:1.7;color:#58695b}
+.karel-portfolio-onboarding small{display:block;margin-top:13px;color:#69776b;line-height:1.6}
+.karel-onboarding-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.karel-doc-guidance{display:flex;justify-content:space-between;align-items:center;gap:22px;background:#f2f7e8;border:1px solid #dce7ce;border-radius:16px;padding:22px 24px;margin:14px 0 17px}
+.karel-doc-guidance h3{margin:7px 0;font-size:17px}
+.karel-doc-guidance p{margin:0;line-height:1.7;color:#5c6b59;font-size:14px;max-width:75ch}
+.karel-doc-guidance .btn{white-space:nowrap;flex-shrink:0}
+.karel-starter-options{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin:18px 0 13px}
+.karel-starter-options button{border:1px solid #d7e3ca;background:#f6f9ef;color:#405c25;border-radius:12px;padding:11px 14px;font-family:inherit;font-weight:650;font-size:13px;cursor:pointer}
+.karel-starter-options button:hover,.karel-starter-options button:focus-visible{border-color:#9ec415;background:#ecf6da;outline-offset:2px}
+.compact-welcome>small{font-size:12px;line-height:1.65;color:#697769;max-width:60ch;display:block;margin:0 auto}
+.karel-import-page{max-width:1250px;margin:0 auto;padding:38px 22px 90px}
+.karel-import-intro{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0}
+.karel-import-intro>div{border:1px solid #e0e6db;border-radius:15px;padding:17px 19px;background:#fff}
+.karel-import-number{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#e9f1da;color:#486713;font-weight:750;font-size:14px}
+.karel-import-intro h2{font-size:15px;margin:10px 0 7px}
+.karel-import-intro p,.karel-import-source p,.karel-import-results p{font-size:13px;line-height:1.7;color:#576558}
+.karel-import-source,.karel-import-results{border:1px solid #e0e7dc;border-radius:15px;padding:21px 23px;background:#fff;margin:18px 0}
+.karel-import-source p{margin:0 0 10px}
+.karel-import-source .btn{margin-top:10px}
+.karel-import-source .karel-import-honesty{color:#766444}
+.karel-import-results h2{font-size:20px;margin:0 0 7px}
+.karel-import-table-wrap{width:100%;overflow-x:auto;margin-top:20px}
+.karel-import-table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}
+.karel-import-table th{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:#657366;background:#f3f6f0;padding:12px 13px}
+.karel-import-table td{padding:15px 13px;border-top:1px solid #e6eae1;vertical-align:top;min-width:0}
+.karel-import-table td:first-child{width:63px;text-align:center}
+.karel-import-table td:nth-child(2){width:34%}
+.karel-import-table label{cursor:pointer}
+.karel-import-table td strong{display:block;font-size:14px;color:#283a28;overflow-wrap:anywhere}
+.karel-import-table td small{display:block;margin-top:6px;font-size:12px;color:#667467;line-height:1.55;overflow-wrap:anywhere}
+.karel-import-table td a{display:inline-block;font-size:12px;margin-top:8px;color:#466615;font-weight:650}
+.karel-import-table input[type=checkbox]{width:18px;height:18px;accent-color:#89b519}
+.karel-import-table .karel-import-map-label{display:block;margin-top:10px;font-size:12px;color:#5b685e;font-weight:650}
+.karel-import-table select{font:inherit;font-size:13px;max-width:100%;width:100%;padding:10px 12px;border:1px solid #cdd8ca;background:#fff;border-radius:9px;margin-top:5px}
+.karel-import-consent{display:flex;align-items:flex-start;gap:12px;line-height:1.7;font-size:13px;color:#556455;margin:24px 0 17px}
+.karel-import-consent input{margin-top:4px;accent-color:#89b519}
+.karel-import-warning{color:#9b451b!important;font-weight:650}
+@media(max-width:1000px){
+  .karel-import-intro{grid-template-columns:1fr}
+  .karel-import-table td:nth-child(2){width:40%}
+  .karel-doc-guidance{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:760px){
+  .karel-import-page{padding:20px 12px 100px}
+  .karel-import-source,.karel-import-results{padding:14px}
+  .karel-import-table th,.karel-import-table td{padding:11px 8px}
+  .karel-import-table{font-size:12px}
+  .karel-import-table td strong{font-size:13px}
+  .karel-import-table td small{font-size:11px}
+  .karel-import-table select{font-size:12px;min-width:180px}
+  .karel-portfolio-heading-actions{width:100%}
+  .karel-portfolio-heading-actions .btn{flex:1;text-align:center}
+  .karel-doc-guidance{padding:16px}
+  .karel-doc-guidance .btn{white-space:normal;text-align:center}
+  .karel-starter-options button{flex-basis:100%}
+  .karel-project-brief-missing{align-items:flex-start;flex-direction:column}
+}
