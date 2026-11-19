@@ -1,0 +1,92 @@
+{# Dedicated human-facing project management. Existing routes are source of truth. #}
+<div class="content-view fresh-clean karel-project-management">
+  <header class="view-head">
+    <div>
+      <div class="eyebrow">SPRÁVA PROJEKTU</div>
+      <h2>Upravit a spravovat projekt</h2>
+      <p>Tady změníš název, upravíš popis, přesuneš projekt do archivu nebo ho obnovíš. Zadání a GitHub data zůstávají zachované.</p>
+    </div>
+    <div class="view-head-actions">
+      <a class="btn secondary" href="/projects/{{ project.id }}?view=development">Zpět na přehled</a>
+    </div>
+  </header>
+
+  <section class="karel-manage-status" aria-label="Aktuální stav projektu">
+    <div><strong>{{ project.name }}</strong>
+      <span class="karel-manage-state {{ 'archived' if project.status == 'archived' else 'active' }}">
+        {{ 'Archivovaný projekt' if project.status == 'archived' else 'Aktivní projekt' }}
+      </span>
+    </div>
+    <p>{{ 'Projekt je uložený v archivu a můžeš ho znovu aktivovat.' if project.status == 'archived' else 'Projekt je aktivní. Všechna jeho data zůstávají přístupná.' }}</p>
+  </section>
+
+  <section class="settings-block karel-manage-block" id="project-details">
+    <div class="settings-block-head">
+      <div><h3>Název a popis projektu</h3>
+        <p>Úprava názvu nemění GitHub repozitář, chaty, úkoly ani projektovou dokumentaci.</p>
+      </div>
+    </div>
+    {% if can_edit %}
+    <form method="post" action="/projects/{{ project.id }}/edit" class="form-grid karel-manage-edit">
+      <label for="manage-name">Název projektu
+        <input id="manage-name" name="name" value="{{ project.name }}" maxlength="255" required>
+      </label>
+      <label for="manage-description">Krátký popis projektu
+        <textarea id="manage-description" name="description" rows="4" maxlength="2000" placeholder="Co je účelem projektu">{{ project.description or '' }}</textarea>
+      </label>
+      <button type="submit" class="btn primary">Uložit změny projektu</button>
+    </form>
+    {% else %}
+    <p>{{ project.name }}</p>
+    <p>{{ project.description or 'Popis není uveden.' }}</p>
+    <small>K tomuto projektu máš přístup pouze pro čtení.</small>
+    {% endif %}
+  </section>
+
+  <section class="settings-block karel-manage-block">
+    <div class="settings-block-head"><div>
+      <h3>Zadání a další data</h3>
+      <p>Název projektu není totéž co jeho zadání. Obsah, obchodní cíle a dokumenty lze upravit samostatně.</p>
+    </div></div>
+    <div class="karel-manage-shortcuts">
+      <a class="btn secondary" href="/projects/{{ project.id }}?view=docs">Upravit zadání a cíle</a>
+      <a class="btn secondary" href="/projects/{{ project.id }}?view=tasks">Zobrazit úkoly</a>
+      <a class="btn secondary" href="/projects/{{ project.id }}?view=settings">Nastavení zdrojů a připojení</a>
+    </div>
+  </section>
+
+  {% if can_manage %}
+  <section class="settings-block danger-zone karel-manage-block" id="project-lifecycle">
+    <div class="settings-block-head"><div>
+      <h3>{{ 'Archiv a obnovení' if project.status == 'archived' else 'Archivovat projekt' }}</h3>
+      <p>Archivaci můžeš kdykoli vrátit. Data, chaty, úkoly a propojení se archivací nesmažou.</p>
+    </div></div>
+    {% if project.status == 'archived' %}
+    <form method="post" action="/projects/{{ project.id }}/archive" class="karel-manage-archive-form">
+      <input type="hidden" name="archived" value="0">
+      <button type="submit" class="btn primary">Obnovit projekt z archivu</button>
+    </form>
+    <details class="karel-danger-disclosure">
+      <summary>Trvale smazat archivovaný projekt</summary>
+      <p>Trvalé smazání odstraní projekt, jeho chaty, úkoly, soubory a uložená propojení v Karlovi. Zdrojový GitHub repozitář ani WordPress se nemažou. Tento krok nelze vzít zpět. Před smazáním ověř zálohu.</p>
+      <form method="post" action="/projects/{{ project.id }}/delete"
+            class="karel-confirm-project-delete"
+            onsubmit="return confirm('Opravdu trvale smazat projekt a všechna jeho data v Karlovi?')">
+        <label for="manage-delete-name">Pro potvrzení opiš přesně: <strong>{{ project.name }}</strong>
+          <input id="manage-delete-name" name="confirmation_name" required autocomplete="off">
+        </label>
+        <button type="submit" class="btn danger">Trvale smazat projekt</button>
+      </form>
+    </details>
+    {% else %}
+    <form method="post" action="/projects/{{ project.id }}/archive"
+          class="karel-manage-archive-form"
+          onsubmit="return confirm('Přesunout projekt do archivu? Data zůstanou zachována.')">
+      <input type="hidden" name="archived" value="1">
+      <button type="submit" class="btn secondary">Archivovat projekt</button>
+    </form>
+    <p class="karel-manage-warning">Trvalé smazání se zpřístupní až u archivovaného projektu, po zadání jeho přesného názvu.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
