@@ -9,6 +9,7 @@ import json
 from sqlalchemy import select
 
 from ..models import ProjectMemory, ProjectEvent
+from ..config import settings
 from .fresh_core_reader import (
     CREDENTIAL_KIND, SNAPSHOT_KIND, FreshCoreReader, FreshCoreError,
     seal_key, unseal_key, vault_ready,
@@ -49,6 +50,7 @@ def connection_state(db, project_id: int) -> dict:
         "last_synced_at": snapshot.get("fetched_at"),
         "snapshot": snapshot,
         "vault_ready": vault_ready(),
+        "hosts_ready": bool(str(getattr(settings, "fresh_core_allowed_hosts", "") or "").strip()),
     }
 
 
