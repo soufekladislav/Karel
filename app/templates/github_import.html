@@ -1,48 +1,109 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container" style="max-width:1100px;margin:36px auto;padding:0 22px 65px">
-  <header class="view-head">
-    <div><div class="eyebrow">Karel · superadministrace</div>
-      <h1>Import projektů z GitHubu</h1>
-      <p>Nejdřív se podíváme, co GitHub skutečně obsahuje. Potom schválíš založení nebo propojení projektů. Nic se nemaže a do GitHubu se nezapisuje.</p>
+<div class="container karel-import-page">
+  <header class="karel-page-heading">
+    <div>
+      <div class="eyebrow">GITHUB · MOJE PROJEKTY</div>
+      <h1>Připojit projekty z GitHubu</h1>
+      <p>Vyber repozitáře, přiřaď je k existujícím projektům nebo založ nové. Karel zachová uložená data a nic na GitHubu nemění.</p>
     </div>
+    <a class="btn secondary" href="/">Moje projekty</a>
   </header>
-  {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
-  {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
-  <div class="fresh-summary">
-    <b>Zdroj: GitHub · pouze čtení</b>
-    <p>Povolení vlastníci: {{ allowed_owners or 'nejsou nastaveni' }} · Privátní repozitáře: {{ 'mohou být dostupné podle přístupového tokenu' if has_token else 'vyžadují token' }}</p>
-    <p>Projekty v Karlovi se kontrolují podle existujících vazeb a názvů. Stejnojmenný rozpor vyžaduje ruční rozhodnutí.</p>
-  </div>
-  <p><a class="btn secondary" href="/admin">Zpět do administrace</a>
-    {% if allowed_owners %}<a class="btn primary" href="/admin/github-import?discover=1">Načíst a porovnat repozitáře</a>{% endif %}</p>
+
+  {% if notice %}<div class="project-alert ok" role="status">{{ notice }}</div>{% endif %}
+  {% if error %}<div class="project-alert error" role="alert">{{ error }}</div>{% endif %}
+
+  <section class="karel-import-intro">
+    <div><span class="karel-import-number">1</span><h2>Prohlédnout repozitáře</h2><p>Načteme jen repozitáře povolených vlastníků a porovnáme je s tvými projekty.</p></div>
+    <div><span class="karel-import-number">2</span><h2>Vybrat a namapovat</h2><p>Rozhodneš, zda založit nový projekt, nebo využít již existující. Nic se nepřepisuje.</p></div>
+    <div><span class="karel-import-number">3</span><h2>Načíst aktuální data</h2><p>Po propojení otevřeš GitHub u projektu a načteš Issues, Pull Requesty a CI.</p></div>
+  </section>
+  <section class="karel-import-source">
+    <p><strong>Přístup:</strong> {{ allowed_owners or 'GitHub vlastník není nastaven' }} ·
+    {% if has_token %}včetně repozitářů dostupných čtecímu tokenu{% else %}pouze veřejné repozitáře{% endif %}.
+    {% if not has_token %}Soukromé repozitáře vyžadují připojení účtu.{% endif %}</p>
+    <p class="karel-import-honesty">Import spravuje pouze projekty a jejich vazby. První synchronizaci dat zatím musíš spustit pro každý projekt zvlášť. Přístup vlastním GitHub účtem pro každého uživatele je ve vývoji.</p>
+    {% if allowed_owners %}
+    <a class="btn primary" href="/github/import?discover=1">Načíst a porovnat repozitáře</a>
+    {% else %}
+    <p role="status">Momentálně není nastaveno oprávnění pro čtení GitHubu. Administrátor aplikace musí povolit důvěryhodného vlastníka.</p>
+    {% endif %}
+  </section>
 
   {% if repositories is not none %}
-  <div class="fresh-summary">
-    <b>Nalezeno {{ repositories|length }} repozitářů</b>
-    <span>Nové: {{ plan|selectattr('action','equalto','create')|list|length }} · Propojit existující: {{ plan|selectattr('action','equalto','attach')|list|length }} · Již propojené: {{ plan|selectattr('action','equalto','linked')|list|length }} · Ruční kontrola: {{ plan|selectattr('action','equalto','review')|list|length }}</span>
-    {% if truncated %}<p style="color:#a4430e"><strong>Výpis není kompletní.</strong> Dosáhl limitu GitHub API; nesmí být považován za kompletní import.</p>{% endif %}
-  </div>
-  <form action="/admin/github-import" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr><th style="text-align:left;padding:10px">Vybrat</th><th style="text-align:left;padding:10px">Repozitář</th><th style="text-align:left;padding:10px">Co se stane</th><th style="text-align:left;padding:10px">Přístup</th></tr></thead>
-        <tbody>
+  <section class="karel-import-results">
+    <h2>Nalezeno {{ repositories|length }} repozitářů</h2>
+    <p>Nové: <strong>{{ plan|selectattr('action','equalto','create')|list|length }}</strong> ·
+    Shoda s projektem: <strong>{{ plan|selectattr('action','equalto','attach')|list|length }}</strong> ·
+    Již připojené: <strong>{{ plan|selectattr('action','equalto','linked')|list|length }}</strong> ·
+    Vyžaduje rozhodnutí: <strong>{{ plan|selectattr('action','equalto','review')|list|length }}</strong></p>
+    {% if truncated %}<p class="karel-import-warning"><strong>Výpis není úplný.</strong> GitHub API dosáhlo limitu počtu repozitářů.</p>{% endif %}
+    {% if plan %}
+    <form method="post" action="/github/import" id="karel-import-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="karel-import-table-wrap">
+        <table class="karel-import-table">
+          <thead><tr><th scope="col">Vybrat</th><th scope="col">GitHub</th><th scope="col">Výsledek v Karlovi</th></tr></thead>
+          <tbody>
           {% for item in plan %}
-          <tr style="border-top:1px solid #e3e8e0">
-            <td style="padding:10px"><input type="checkbox" name="repositories" value="{{ item.full_name }}" {% if item.action in ('linked','review') %}disabled{% else %}checked{% endif %}></td>
-            <td style="padding:10px"><a href="{{ item.html_url }}" target="_blank" rel="noopener noreferrer">{{ item.full_name }}</a><div style="color:#737b72;font-size:11px">{{ item.description|truncate(120) }}{% if item.archived %} · Archiv{% endif %}</div></td>
-            <td style="padding:10px"><strong>{% if item.action=='create' %}Založit projekt{% elif item.action=='attach' %}Propojit projekt #{{ item.local_project_id }}{% elif item.action=='linked' %}Již propojen{% else %}Nutné ruční mapování{% endif %}</strong><div style="color:#737b72;font-size:11px">{{ item.reason }}</div></td>
-            <td style="padding:10px">{{ 'Soukromý' if item.private else 'Veřejný' }}</td>
+          <tr>
+            <td>
+              <input type="checkbox" name="repositories" value="{{ item.full_name }}"
+                  id="import-{{ loop.index }}" aria-label="Vybrat {{ item.full_name }}"
+                  {% if item.action == 'linked' %}disabled{% endif %}>
+            </td>
+            <td>
+              <label for="import-{{ loop.index }}"><strong>{{ item.full_name }}</strong></label>
+              <small>{{ item.description|truncate(140) }}{% if item.archived %} · Archiv{% endif %} · {{ 'Soukromý' if item.private else 'Veřejný' }}</small>
+              {% if item.html_url %}<a href="{{ item.html_url }}" target="_blank" rel="noopener noreferrer">Otevřít na GitHubu</a>{% endif %}
+            </td>
+            <td>
+              {% if item.action == 'linked' %}
+                <strong>Již propojeno</strong><small>Projekt #{{ item.local_project_id }} – znovu nevytvářet.</small>
+              {% else %}
+                <strong>{% if item.action == 'attach' %}Nalezen existující projekt #{{ item.local_project_id }}{% elif item.action == 'review' %}Název je nejednoznačný{% else %}Navrženo založit nový projekt{% endif %}</strong>
+                <label class="karel-import-map-label" for="map-{{ loop.index }}">Kam repozitář zařadit?</label>
+                <select name="map_{{ item.full_name }}" id="map-{{ loop.index }}">
+                  <option value="">{% if item.action == 'attach' %}Automaticky propojit nalezený projekt{% elif item.action == 'review' %}Vyber existující projekt (povinné){% else %}Vytvořit nový projekt{% endif %}</option>
+                  {% for p in available_projects %}
+                  <option value="{{ p.id }}">{{ p.name }} · projekt #{{ p.id }}</option>
+                  {% endfor %}
+                </select>
+                <small>{{ item.reason or 'Před potvrzením výběr zkontroluj. Založení nového projektu nepřepíše žádný stávající.' }}</small>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <label style="display:block;margin:22px 0;font-size:13px"><input type="checkbox" name="confirm" value="yes" required> Rozumím, že se vybrané projekty založí nebo propojí v databázi Karla. Obsah GitHubu se zatím pouze propojí; jeho synchronizace se spouští zvlášť.</label>
-    <button class="btn primary" type="submit">Potvrdit import vybraných projektů</button>
-  </form>
+          </tbody>
+        </table>
+      </div>
+      <label class="karel-import-consent">
+        <input type="checkbox" name="confirm" value="yes" required>
+        <span>Potvrzuji pouze vybrané repozitáře a jejich přiřazení. Existující projektová data i původní GitHub zůstanou beze změny.</span>
+      </label>
+      <button class="btn primary" type="submit">Potvrdit vybraná propojení</button>
+    </form>
+    {% else %}
+    <p>Nenašli jsme žádný repozitář pro povolené vlastníky.</p>
+    {% endif %}
+  </section>
   {% endif %}
 </div>
+<script>
+(function(){
+  const form=document.getElementById('karel-import-form');
+  if(!form)return;
+  form.addEventListener('submit',function(event){
+    const chosen=Array.from(form.querySelectorAll('input[name="repositories"]:checked'));
+    if(!chosen.length){event.preventDefault();window.alert('Vyber alespoň jeden repozitář.');return;}
+    const manualTargets=chosen.map(box=>({
+      repo:box.value, selected:form.elements.namedItem('map_'+box.value)?.value||''
+    })).filter(item=>item.selected);
+    const values=manualTargets.map(item=>item.selected);
+    if(new Set(values).size!==values.length){
+      event.preventDefault();window.alert('Jeden projekt nelze přiřadit více repozitářům.');return;
+    }
+  });
+})();
+</script>
 {% endblock %}
