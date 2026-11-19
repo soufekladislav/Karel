@@ -375,6 +375,12 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             'github_status':gh,'github_link':link,
             'next_step':next_step,
         })
+    # Give projects awaiting a decision or a fix priority over recent but idle ones.
+    dashboard_projects.sort(key=lambda item: (
+        0 if item['counts'].get('waiting_user', 0) or item['counts'].get('failed', 0) else 1,
+        -item['counts'].get('waiting_user', 0),
+        -item['counts'].get('failed', 0),
+    ))
     deadline_alerts.sort(key=lambda x:x['days'])
     dashboard_totals={
         'open':sum(x['open'] for x in dashboard_projects),
@@ -389,7 +395,8 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             fresh_requests=fresh_key.pending_link_requests(u)
         except Exception as exc:
             fresh_error=str(exc)
-    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,can_import_portfolio=is_superadmin(u)))
+    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,
+        github_configured=github_enabled,can_import_portfolio=is_superadmin(u)))
 
 @app.post('/projects')
 def create_project(request: Request, name: str=Form(...), description: str=Form(''), db: Session=Depends(get_db)):
