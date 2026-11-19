@@ -434,3 +434,18 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
   .karel-starter-options button{flex-basis:100%}
   .karel-project-brief-missing{align-items:flex-start;flex-direction:column}
 }
+
+/* Guided start replaces empty project KPI board; retains existing workflow. */
+.karel-project-empty-start{padding:25px 28px;border:1px solid #d6e3c7;border-radius:16px;background:#f5f9ed;margin:16px 0 22px}
+.karel-project-empty-start h3{font-size:20px;line-height:1.45;margin:8px 0}
+.karel-project-empty-start p{font-size:14px!important;line-height:1.75!important;color:#566957;max-width:75ch;margin:9px 0!important}
+.karel-library-empty{background:#f6f9f0;border:1px solid #d9e5ca;border-radius:15px;padding:30px;grid-column:1/-1}
+.karel-library-empty h3{font-size:22px;margin:9px 0 10px}
+.karel-library-empty p{font-size:14px;line-height:1.75;color:#536454;max-width:68ch}
+.karel-library-examples{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}
+.karel-library-examples span{font-size:12px;color:#4c692d;background:#fff;border:1px solid #dae4d2;border-radius:999px;padding:7px 11px}
+.karel-library-empty .karel-library-limit{font-size:12px;color:#73806d;max-width:85ch;margin:0 0 15px}
+.project-sidebar .logout-form,.global-sidebar .logout-form{margin:5px 0 0}
+.project-sidebar .logout-form .side-logout,.global-sidebar .logout-form .side-logout{display:block;text-align:left;background:transparent;color:#afc0af!important;border:1px solid transparent;border-radius:8px;padding:10px 11px;cursor:pointer;width:100%;font:inherit;font-weight:600;font-size:12px}
+.project-sidebar .logout-form .side-logout:hover,.global-sidebar .logout-form .side-logout:hover{border-color:#4e604f;background:#233026;color:#fff!important}
+@media(max-width:760px){.karel-project-empty-start{padding:17px}.karel-library-empty{padding:20px}.karel-library-empty h3{font-size:18px}}
