@@ -439,7 +439,7 @@ def create_project(request: Request, name: str=Form(...), description: str=Form(
 @app.get('/projects/{project_id}', response_class=HTMLResponse)
 def project_view(request: Request, project_id: int, chat_id: int|None=None, view: str='chat', db: Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id)
-    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github','website'}
+    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github','website','manage'}
     if view not in allowed_views: view='chat'
     if view == 'github':
         return RedirectResponse(f'/projects/{p.id}/github', 303)
@@ -675,7 +675,7 @@ def edit_project(request:Request, project_id:int, name:str=Form(...), descriptio
     p.updated_at=datetime.utcnow()
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_updated',detail='Základní informace projektu byly upraveny.'))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?view=settings&notice='+quote('Projekt jsem uložil.'),303)
+    return RedirectResponse(f'/projects/{p.id}?view=manage&notice='+quote('Název a popis projektu byly uloženy.'),303)
 
 @app.post('/projects/{project_id}/spec')
 def edit_project_spec(request:Request, project_id:int, purpose:str=Form(''), project_type:str=Form(''), business_goal:str=Form(''), functional_goal:str=Form(''), project_scope:str=Form(''), project_deadline:str=Form(''), project_plan:str=Form(''), db:Session=Depends(get_db)):
@@ -767,7 +767,9 @@ def archive_project(request:Request, project_id:int, archived:int=Form(1), db:Se
     p.status='archived' if bool(archived) else 'active'; p.updated_at=datetime.utcnow()
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_archived' if p.status=='archived' else 'project_restored',detail=p.name))
     db.commit()
-    return RedirectResponse('/?notice='+quote('Projekt byl archivován.' if p.status=='archived' else 'Projekt byl obnoven.'),303)
+    return RedirectResponse(
+        f'/projects/{p.id}?view=manage&notice='+
+        quote('Projekt byl přesunut do archivu.' if p.status=='archived' else 'Projekt byl obnoven z archivu.'),303)
 
 @app.post('/projects/{project_id}/delete')
 def delete_project(request:Request, project_id:int, confirmation_name:str=Form(''),
@@ -810,7 +812,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
-    safe_views = {'chat','docs','development','tasks','github','website','settings','testing','releases','outputs','history','files','components'}
+    safe_views = {'chat','docs','development','tasks','github','website','manage','settings','testing','releases','outputs','history','files','components'}
     if return_view not in safe_views:
         return_view = 'chat'
     destination = (f'/projects/{p.id}/github?chat_id={c.id}' if return_view == 'github'
