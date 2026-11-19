@@ -35,6 +35,10 @@ from .services.request_security import allow_browser_mutation, secure_production
 from .services.project_presentation import brief, github_connection_state, project_next_step
 from .services.project_journeys import (selected_project_type, project_mode, validate_site_url,
                                          journey_for_project)
+from .services.fresh_core_project import (
+    connection_state as fresh_core_state, connect_readonly, refresh_readonly, disconnect_readonly,
+)
+from .services.fresh_core_reader import FreshCoreError
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
 from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
@@ -479,9 +483,13 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     stages=get_stages(db,p.id)
     stage_alerts=workflow_alerts(stages)
     github_link=db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
-    github_status=github_connection_state(github_link, bool(settings.github_allowed_owners.strip()))
+    github_status=github_connection_state(
+        github_link, bool(settings.github_allowed_owners.strip()) or
+        not is_superadmin(u) or bool(github_link and github_link.last_synced_at))
+    core_state=fresh_core_state(db,p.id)
     project_focus=project_next_step(spec,task_counts,github_status,stage_alerts,
-        mode=project_mode(spec.get('project_type'),github_linked=bool(github_link)))
+        mode=project_mode(spec.get('project_type'),github_linked=bool(github_link)),
+        fresh_connected=core_state['kind'] == 'synced')
     project_goal_preview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,
                                220, 'Prober s Karlem, čeho chceš dosáhnout.')
     project_mode_name=project_mode(spec.get('project_type'), github_linked=bool(github_link))
@@ -493,7 +501,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         project_id=p.id, mode=project_mode_name, github=github_status,
         has_business_goal=bool(spec.get('business_goal') or spec.get('purpose')),
         has_site_url=bool(website_url),
-        can_import=is_superadmin(u),
+        can_import=is_superadmin(u), fresh_connected=core_state['kind'] == 'synced',
     )
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
@@ -522,7 +530,8 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         github_status=github_status,github_link=github_link,project_focus=project_focus,
         project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
         project_mode=project_mode_name,project_journey=project_journey,
-        website_url=website_url,can_import_portfolio=is_superadmin(u),
+        website_url=website_url,core_state=core_state,
+        can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
         notice=request.query_params.get('notice',''),notice_url=request.query_params.get('notice_url',''),notice_label=request.query_params.get('notice_label','Otevřít'),error=request.query_params.get('error','')))
 
