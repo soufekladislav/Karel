@@ -13,12 +13,51 @@
     </div>
   </header>
 
+  <section class="karel-two-journeys" aria-label="S čím ti může Karel pomoci">
+    <div class="karel-choice-heading">
+      <h2>S čím ti můžu pomoci?</h2>
+      <p>Vyber, co chceš řešit. Podrobnosti spolu doladíme v chatu.</p>
+    </div>
+    <div class="karel-choice-grid">
+      <article class="karel-choice-card">
+        <span class="karel-choice-symbol" aria-hidden="true">WP</span>
+        <div><h3>Mám WordPress web</h3>
+          <p>Pomohu ti plánovat úpravy, řešit problémy a připravovat obsah. Pro přístup k datům webu tě provedu instalací Fresh Core.</p>
+          <button type="button" class="btn primary" onclick="chooseKarelProject('wordpress')">Začít se svým webem</button>
+        </div>
+      </article>
+      <article class="karel-choice-card">
+        <span class="karel-choice-symbol dev" aria-hidden="true">&lt;/&gt;</span>
+        <div><h3>Vyvíjím aplikaci nebo web</h3>
+          <p>Pomohu ti udržet zadání, úkoly a stav GitHubu pohromadě. Načítání dat a vývojové automatizace zapojíme postupně.</p>
+          <button type="button" class="btn primary" onclick="chooseKarelProject('github')">Začít s vývojem</button>
+        </div>
+      </article>
+    </div>
+  </section>
   <div id="new-project" class="drawer {% if request.query_params.get('new') %}open{% endif %}">
-    <form method="post" action="/projects" class="card form-grid">
-      <h2>Nový projekt</h2>
-      <label>Název projektu<input name="name" required maxlength="255" placeholder="Například: Karel"></label>
-      <label>Krátký popis<textarea name="description" rows="3" placeholder="Co má projekt řešit a proč vzniká"></textarea></label>
-      <button type="submit" class="btn primary">Vytvořit projekt</button>
+    <form method="post" action="/projects" class="card form-grid" id="karel-new-project-form">
+      <div class="karel-create-intro"><div class="eyebrow">NOVÝ PROJEKT</div><h2>Začneme jednoduše</h2>
+        <p>Vytvoříme pracovní místo pro projekt. Potom tě Karel provede dalším krokem v chatu.</p></div>
+      <label>Co chceš spravovat?
+        <select name="project_mode_choice" id="project-mode-choice" onchange="updateKarelProjectMode()">
+          <option value="wordpress">WordPress web / e-shop</option>
+          <option value="github">Aplikaci nebo web vyvíjený s GitHubem</option>
+          <option value="general">Jiný digitální projekt</option>
+        </select>
+      </label>
+      <label>Název projektu<input name="name" required maxlength="255" placeholder="Například: Můj firemní web"></label>
+      <label id="website-url-field">Adresa WordPress webu (můžeš doplnit později)
+        <input name="website_url" type="text" inputmode="url" maxlength="300" placeholder="mujweb.cz" autocomplete="url">
+        <small>Zatím ji pouze uložíme, bez přístupu k tvému webu.</small>
+      </label>
+      <label>Co bys chtěl vyřešit? (volitelné)
+        <textarea name="description" rows="2" maxlength="1200" placeholder="Třeba: potřebuji upravit nabídku služeb a získat více poptávek"></textarea>
+      </label>
+      <div class="karel-create-actions">
+        <button type="submit" class="btn primary">Založit a probrat s Karlem</button>
+        <button type="button" class="btn secondary" onclick="toggle('new-project')">Zavřít</button>
+      </div>
     </form>
   </div>
 
@@ -56,17 +95,7 @@
   </details>
   {% endif %}
 
-  {% if not projects %}
-  <section class="karel-portfolio-onboarding">
-    <h2>Co chceš s Karlem vyřešit?</h2>
-    <p>Začni jednoduše. Karel pomůže rozpracovat zadání, rozdělit práci a hlídat další kroky.</p>
-    <div class="karel-onboarding-actions">
-      <button type="button" class="btn primary" onclick="toggle('new-project')">Popsat nový projekt</button>
-      {% if can_import_portfolio %}<a class="btn secondary" href="/github/import">Mám projekty na GitHubu</a>{% endif %}
-    </div>
-    <small>WordPress můžeš začít řešit jako projekt; přímé úpravy webu vyžadují připravované napojení Fresh Core.</small>
-  </section>
-  {% endif %}
+
   {% if not github_configured and can_import_portfolio and projects %}
   <p class="karel-portfolio-source-note">GitHub zatím není nakonfigurován. Neovlivňuje to práci s projekty. <a href="/github/import">Zobrazit propojení GitHubu →</a></p>
   {% endif %}
@@ -88,7 +117,11 @@
             <h3><a href="/projects/{{ p.id }}?view=development">{{ p.name }}</a></h3>
             {% if item.spec.project_type %}<span class="karel-project-type">{{ item.spec.project_type }}</span>{% endif %}
           </div>
-          {% if gh.kind != 'setup' %}<span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>{% endif %}
+          {% if item.project_mode == 'wordpress' %}
+            <span class="karel-status-pill pending">Web · čeká na propojení</span>
+          {% elif gh.kind != 'setup' %}
+            <span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>
+          {% endif %}
         </div>
         {% if item.has_goal %}
         <div class="karel-project-goal">
@@ -150,6 +183,21 @@
   {% endif %}
 </div>
 <script>
+function chooseKarelProject(mode){
+  const form=document.getElementById('new-project');
+  if(!form)return;
+  form.classList.add('open');
+  const sel=document.getElementById('project-mode-choice');
+  if(sel){sel.value=mode;updateKarelProjectMode();}
+  form.scrollIntoView({behavior:'smooth',block:'start'});
+  form.querySelector('input[name="name"]')?.focus({preventScroll:true});
+}
+function updateKarelProjectMode(){
+  const mode=document.getElementById('project-mode-choice')?.value;
+  const field=document.getElementById('website-url-field');
+  if(field)field.hidden=mode!=='wordpress';
+}
+updateKarelProjectMode();
 function filterKarelProjects(value){
   const query=(value||'').trim().toLocaleLowerCase('cs');
   const cards=document.querySelectorAll('#karel-project-cards .karel-project-card');
