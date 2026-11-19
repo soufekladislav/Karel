@@ -525,6 +525,56 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
         notice=request.query_params.get('notice',''),notice_url=request.query_params.get('notice_url',''),notice_label=request.query_params.get('notice_label','Otevřít'),error=request.query_params.get('error','')))
 
+@app.post('/projects/{project_id}/mode')
+def choose_existing_project_mode(request: Request, project_id: int,
+                                 project_mode_choice: str=Form(...),
+                                 db: Session=Depends(get_db)):
+    """Assign an existing project a user-chosen journey; preserve all other data."""
+    u=require_user(request, db)
+    p=get_project_or_404(db, u, project_id, write=True)
+    if project_mode_choice not in ('wordpress', 'github', 'general'):
+        raise HTTPException(400, 'Neznámý typ projektu.')
+    save_project_spec_value(db, p.id, 'project_type', selected_project_type(project_mode_choice))
+    p.updated_at=datetime.utcnow()
+    db.add(ProjectEvent(project_id=p.id, user_id=u.id, event_type='project_mode_selected',
+                        detail='Uživatel zvolil zaměření projektu: ' + project_mode_choice))
+    db.commit()
+    return RedirectResponse(f'/projects/{p.id}?view=development', 303)
+
+
+@app.post('/projects/{project_id}/website-url')
+def save_declared_website_url(request: Request, project_id: int,
+                              website_url: str=Form(...), db: Session=Depends(get_db)):
+    """Store declared WordPress URL without contacting the given host."""
+    u=require_user(request, db)
+    p=get_project_or_404(db, u, project_id, write=True)
+    spec=project_spec(db, p.id)
+    if project_mode(spec.get('project_type')) != 'wordpress':
+        raise HTTPException(400, 'Adresa webu patří k WordPress projektu.')
+    try:
+        url=validate_site_url(website_url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)[:250])
+    if not url:
+        raise HTTPException(400, 'Zadej adresu WordPress webu.')
+    existing=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == p.id, ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    if existing:
+        existing.content=url
+        existing.verified=False
+    else:
+        db.add(ProjectMemory(project_id=p.id, kind='wordpress_site_url',
+                             title='Adresa webu (zadána uživatelem, neověřená)',
+                             content=url, verified=False))
+    p.updated_at=datetime.utcnow()
+    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='wordpress_url_declared',
+                        detail='Uživatel uvedl adresu WordPress webu (neověřeno).'))
+    db.commit()
+    return RedirectResponse(f'/projects/{p.id}?view=website&notice=' +
+                            quote('Adresu webu jsem uložil; propojení se zatím neověřilo.'), 303)
+
+
 @app.post('/projects/{project_id}/edit')
 def edit_project(request:Request, project_id:int, name:str=Form(...), description:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
