@@ -5,7 +5,7 @@ and project detail must share these rules instead of producing competing status.
 """
 from __future__ import annotations
 
-import json
+from .github_snapshot_codec import decode_snapshot
 import re
 
 
@@ -60,7 +60,7 @@ def github_connection_state(link, owners_configured: bool) -> dict[str, str]:
             "detail": "Repozitář je přiřazen, ale nemá potvrzený první snímek.",
         }
     try:
-        snapshot = json.loads(getattr(link, "snapshot_json", "") or "{}")
+        snapshot = decode_snapshot(getattr(link, "snapshot_json", ""))
         if not isinstance(snapshot, dict) or not snapshot.get("repository"):
             # Old snapshots may only contain html_url and counts; accept actual
             # loaded data but never mark an empty object as synchronized.
