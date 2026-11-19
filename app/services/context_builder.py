@@ -377,8 +377,7 @@ def build_context(
         try:
             from ..models import GitHubRepoLink
             from .github_connector import prompt_summary
-            import json
-from .github_snapshot_codec import decode_snapshot
+            from .github_snapshot_codec import decode_snapshot
             link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == project.id))
             if link and link.snapshot_json:
                 snapshot = decode_snapshot(link.snapshot_json)
