@@ -11,7 +11,12 @@
       </div>
       {% if can_import_portfolio %}<div class="view-head-actions"><a class="btn secondary" href="/github/import">Importovat projekty z GitHubu</a></div>{% endif %}
       </header>
-      {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %}
+      <section class="karel-workflow-intro">
+        <h2>{{ project_journey.headline }}</h2>
+        <p>{{ project_journey.detail }}</p>
+        <a class="karel-text-link" href="/projects/{{ project.id }}?view=development">Pracovní přehled projektu →</a>
+      </section>
+      {% if notice %}<div class="project-alert ok">{{ notice }}</div>{% endif %>
       {% if error %}<div class="project-alert error">{{ error }}</div>{% endif %}
       <section class="karel-github-connection {{ github_status.kind }}" aria-live="polite">
         <div class="karel-github-connection-top">
