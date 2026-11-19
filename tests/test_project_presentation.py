@@ -48,6 +48,10 @@ class PresentationLogicTests(unittest.TestCase):
         self.assertEqual(project_next_step(spec, {}, {"kind": "error"})["href"], "github")
         self.assertEqual(project_next_step(spec, {"working": 1}, gh)["href"], "tasks")
         self.assertEqual(project_next_step(spec, {}, gh)["href"], "chat")
+        self.assertEqual(project_next_step({}, {}, {'kind':'setup'}, mode='wordpress')['href'], 'website')
+        self.assertEqual(project_next_step({}, {}, {'kind':'unlinked'}, mode='github')['href'], 'github')
+        self.assertEqual(project_next_step({}, {}, {'kind':'synced'}, mode='github')['href'], 'chat')
+        self.assertEqual(project_next_step({}, {'waiting_user':1}, gh, mode='wordpress')['href'], 'tasks')
 
 
 class PortfolioTemplateTests(unittest.TestCase):
