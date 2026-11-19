@@ -74,7 +74,7 @@
 
       {% if link and snapshot and github_status.kind in ('synced','error') %}
       <section class="karel-github-metrics" aria-label="Načtená GitHub data">
-        <div><strong>{{ snapshot.counts.open_issues }}</strong><span>otevřených Issues</span></div>
+        <div><strong>{{ snapshot.counts.open_issues }}</strong><span>otevřených Issues · {{ snapshot.counts.issues_loaded }} načtených Issues</span></div>
         <div><strong>{{ snapshot.counts.prs_loaded }}</strong><span>načtených Pull Requestů</span></div>
         <div><strong>{{ snapshot.counts.projects_loaded }}</strong><span>načtených Projects</span></div>
         <div><strong>{{ snapshot.counts.workflow_runs }}</strong><span>běhů testů CI</span></div>
