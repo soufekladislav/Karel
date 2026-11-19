@@ -33,6 +33,8 @@ from .services.app_manifest import build_app_manifest
 from .services.security_selfcheck import collect_security_checks
 from .services.request_security import allow_browser_mutation, secure_production_configuration
 from .services.project_presentation import brief, github_connection_state, project_next_step
+from .services.project_journeys import (selected_project_type, project_mode, validate_site_url,
+                                         journey_for_project)
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
 from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
@@ -359,6 +361,7 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
     github_enabled=bool(settings.github_allowed_owners.strip())
     for p in projects:
         spec=project_spec(db,p.id)
+        mode=project_mode(spec.get('project_type'), github_linked=bool(github_links.get(p.id)))
         alerts=workflow_alerts(get_stages(db,p.id))
         for warning in alerts:
             deadline_alerts.append({'project':p,'message':warning['text'],'days':warning['days']})
@@ -372,7 +375,7 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             'project':p,'spec':spec,'counts':counts,
             'open':sum(counts.get(key,0) for key in ('todo','working','waiting_user','testing','failed')),
             'goal_preview':overview,'has_goal':bool(spec.get('business_goal') or spec.get('purpose') or p.description),
-            'github_status':gh,'github_link':link,
+            'project_mode':mode,'github_status':gh,'github_link':link,
             'next_step':next_step,
         })
     # Give projects awaiting a decision or a fix priority over recent but idle ones.
@@ -399,18 +402,37 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
         github_configured=github_enabled,can_import_portfolio=is_superadmin(u)))
 
 @app.post('/projects')
-def create_project(request: Request, name: str=Form(...), description: str=Form(''), db: Session=Depends(get_db)):
+def create_project(request: Request, name: str=Form(...), description: str=Form(''),
+                   project_mode_choice: str=Form('general'), website_url: str=Form(''),
+                   db: Session=Depends(get_db)):
     u=require_user(request,db)
-    p=Project(owner_id=u.id,name=name.strip(),description=description.strip() or None,updated_at=datetime.utcnow())
+    if project_mode_choice not in ('wordpress','github','general'):
+        raise HTTPException(400, 'Neznámý typ projektu.')
+    title=(name or '').strip()[:255]
+    if not title:
+        raise HTTPException(400, 'Doplň název projektu.')
+    try:
+        site=validate_site_url(website_url) if project_mode_choice=='wordpress' else ''
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)[:250])
+    p=Project(owner_id=u.id,name=title,description=description.strip() or None,updated_at=datetime.utcnow())
     db.add(p); db.flush()
+    save_project_spec_value(db,p.id,'project_type',selected_project_type(project_mode_choice))
+    if site:
+        db.add(ProjectMemory(project_id=p.id,kind='wordpress_site_url',
+                             title='Adresa webu (zadána uživatelem, neověřená)',
+                             content=site, verified=False))
     c=Chat(project_id=p.id,title='Hlavní chat')
-    db.add(c); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_created',detail='Projekt vytvořen.'))
-    db.commit(); return RedirectResponse(f'/projects/{p.id}?view=chat&guide=project-start',303)
+    db.add(c); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_created',
+                                    detail='Projekt vytvořen ('+project_mode_choice+').'))
+    db.commit()
+    guide={'wordpress':'wp-start','github':'github-start','general':'project-start'}[project_mode_choice]
+    return RedirectResponse(f'/projects/{p.id}?view=chat&guide={guide}',303)
 
 @app.get('/projects/{project_id}', response_class=HTMLResponse)
 def project_view(request: Request, project_id: int, chat_id: int|None=None, view: str='chat', db: Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id)
-    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github'}
+    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github','website'}
     if view not in allowed_views: view='chat'
     if view == 'github':
         return RedirectResponse(f'/projects/{p.id}/github', 303)
@@ -460,7 +482,18 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     github_status=github_connection_state(github_link, bool(settings.github_allowed_owners.strip()))
     project_focus=project_next_step(spec,task_counts,github_status,stage_alerts)
     project_goal_preview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,
-                               220, 'Doplň účel a obchodní cíl projektu.')
+                               220, 'Prober s Karlem, čeho chceš dosáhnout.')
+    project_mode_name=project_mode(spec.get('project_type'), github_linked=bool(github_link))
+    site_record=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == p.id, ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    website_url=site_record.content if site_record else ''
+    project_journey=journey_for_project(
+        project_id=p.id, mode=project_mode_name, github=github_status,
+        has_business_goal=bool(spec.get('business_goal') or spec.get('purpose')),
+        has_site_url=bool(website_url),
+        can_import=is_superadmin(u),
+    )
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
     project_has_activity = bool(
@@ -487,6 +520,8 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         project_role=role,project_role_label=ROLE_LABELS.get(role,role),can_edit=can_edit_project(db,u,p),can_manage=can_manage_project(db,u,p),
         github_status=github_status,github_link=github_link,project_focus=project_focus,
         project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
+        project_mode=project_mode_name,project_journey=project_journey,
+        website_url=website_url,can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
         notice=request.query_params.get('notice',''),notice_url=request.query_params.get('notice_url',''),notice_label=request.query_params.get('notice_label','Otevřít'),error=request.query_params.get('error','')))
 
@@ -1271,9 +1306,14 @@ def github_project_page(request: Request, project_id: int, chat_id: int | None =
     recent_messages = (db.scalars(select(Message).where(Message.chat_id == active_chat.id)
                        .order_by(Message.id.desc()).limit(6)).all()[::-1] if active_chat else [])
     gh_status = github_connection_state(link, bool(settings.github_allowed_owners.strip()))
+    spec=project_spec(db,p.id)
+    mode=project_mode(spec.get('project_type'),github_linked=bool(link))
+    journey=journey_for_project(project_id=p.id,mode=mode,github=gh_status,
+        has_business_goal=bool(spec.get('business_goal') or spec.get('purpose')),
+        has_site_url=False,can_import=is_superadmin(u))
     return templates.TemplateResponse('github.html', ctx(
         request, u, project=p, view='github', link=link, snapshot=snap,
-        github_status=gh_status,
+        github_status=gh_status,project_mode=mode,project_journey=journey,
         task_counts=type('TaskCounts', (), task_counts)(),
         active_chat=active_chat, recent_messages=recent_messages,
         can_edit=can_edit_project(db, u, p),
