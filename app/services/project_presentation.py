@@ -80,7 +80,8 @@ def github_connection_state(link, owners_configured: bool) -> dict[str, str]:
 
 
 def project_next_step(spec: dict, counts: dict, github: dict,
-                      stage_alerts: list | None = None) -> dict[str, str]:
+                      stage_alerts: list | None = None, *,
+                      mode: str = "general") -> dict[str, str]:
     """One factual, actionable recommendation – no fabricated milestones."""
     if counts.get("waiting_user", 0):
         n = counts["waiting_user"]
@@ -94,14 +95,23 @@ def project_next_step(spec: dict, counts: dict, github: dict,
         if alert.get("days", 0) < 0:
             return {"label": "Prověřit termín projektového workflow",
                     "href": "development", "kind": "attention"}
+    if mode == "github" and github.get("kind") == "error":
+        return {"label": "Prověřit chybu GitHub synchronizace",
+                "href": "github", "kind": "attention"}
+    if counts.get("working", 0) or counts.get("testing", 0) or counts.get("todo", 0):
+        return {"label": "Projít aktuální úkoly a další postup",
+                "href": "tasks", "kind": "normal"}
+    if mode == "wordpress":
+        return {"label": "Začít s Fresh Core a propojením webu",
+                "href": "website", "kind": "setup"}
+    if mode == "github" and github.get("kind") != "synced":
+        return {"label": "Připojit GitHub a načíst existující projekt",
+                "href": "github", "kind": "setup"}
     if not (spec.get("business_goal") or spec.get("purpose")):
         return {"label": "Představit projekt Karlovi v chatu",
                 "href": "chat", "kind": "setup"}
     if github.get("kind") == "error":
         return {"label": "Prověřit chybu GitHub synchronizace",
                 "href": "github", "kind": "attention"}
-    if counts.get("working", 0) or counts.get("testing", 0) or counts.get("todo", 0):
-        return {"label": "Projít aktuální úkoly a další postup",
-                "href": "tasks", "kind": "normal"}
     return {"label": "Probrat další krok s Karlem",
             "href": "chat", "kind": "normal"}
