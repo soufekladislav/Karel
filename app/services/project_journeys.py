@@ -65,7 +65,8 @@ def validate_site_url(value: str | None) -> str:
 
 def journey_for_project(*, project_id: int, mode: str, github: dict,
                         has_business_goal: bool, has_site_url: bool,
-                        can_import: bool = False) -> dict:
+                        can_import: bool = False,
+                        fresh_connected: bool = False) -> dict:
     """One understandable route. States are claims based on evidence, not clicks."""
     chat = f"/projects/{project_id}?view=chat"
     docs = f"/projects/{project_id}?view=docs"
@@ -79,15 +80,15 @@ def journey_for_project(*, project_id: int, mode: str, github: dict,
             {"title": "Získat a nainstalovat Fresh Core",
              "body": "Plugin umožní vybraným aplikacím Fresh bezpečně číst data webu. "
                      "Stažení je na stránce produktu, instalace probíhá ve WordPressu.",
-             "status": "next", "action": "Otevřít Fresh Core",
+             "status": "done" if fresh_connected else "next", "action": "Otevřít Fresh Core",
              "href": FRESH_CORE_PRODUCT_URL},
             {"title": "Ověřit spojení a připravit plán",
-             "body": "Propojení Karla s Fresh Core a automatické načtení stavu webu teprve dokončujeme. "
-                     "Bez ověření neukazujeme data webu ani připojeno.",
-             "status": "planned", "action": "Probrat cíl webu", "href": docs},
+             "body": ("Ověřený čtecí snímek je k dispozici. Změny webu zatím zůstávají pouze návrhem."
+                      if fresh_connected else "Vlož do Karla čtecí REST klíč z Fresh Core, ověř spojení a bezpečně načti stav WordPressu."),
+             "status": "done" if fresh_connected else "next",
+             "action": "Přejít k datům webu", "href": f"/projects/{project_id}?view=website"},
             {"title": "Schválit úpravu a ověřit výsledek",
-             "body": "Návrhy úkolů lze připravovat. Odesílání změn na web a kontrola publikování "
-                     "budou k dispozici až po ověřeném zápisovém konektoru.",
+             "body": "Karel už může bezpečně navrhovat úkoly. Zápisy na web jsou vypnuté, dokud nebude existovat a nebude otestováno schvalování a zápisové API.",
              "status": "planned", "action": "Připravit požadavek", "href": chat},
         ]
         return {
