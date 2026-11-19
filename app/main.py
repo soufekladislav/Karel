@@ -372,14 +372,16 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
         counts={status: db.scalar(select(func.count(Task.id)).where(Task.project_id==p.id, Task.status==status)) or 0 for status in STATUS_LABELS}
         link=github_links.get(p.id)
         gh=github_connection_state(link,github_enabled)
-        next_step=project_next_step(spec,counts,gh,alerts,mode=mode)
+        fc_state=fresh_core_state(db,p.id) if mode=='wordpress' else {'kind':'unlinked'}
+        next_step=project_next_step(spec,counts,gh,alerts,mode=mode,
+                                   fresh_connected=fc_state['kind']=='synced')
         overview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,175,
                        'Obchodní cíl projektu zatím není popsán.')
         dashboard_projects.append({
             'project':p,'spec':spec,'counts':counts,
             'open':sum(counts.get(key,0) for key in ('todo','working','waiting_user','testing','failed')),
             'goal_preview':overview,'has_goal':bool(spec.get('business_goal') or spec.get('purpose') or p.description),
-            'project_mode':mode,'github_status':gh,'github_link':link,
+            'project_mode':mode,'fresh_core_status':fc_state,'github_status':gh,'github_link':link,
             'next_step':next_step,
         })
     # Give projects awaiting a decision or a fix priority over recent but idle ones.
