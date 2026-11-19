@@ -449,3 +449,87 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .project-sidebar .logout-form .side-logout,.global-sidebar .logout-form .side-logout{display:block;text-align:left;background:transparent;color:#afc0af!important;border:1px solid transparent;border-radius:8px;padding:10px 11px;cursor:pointer;width:100%;font:inherit;font-weight:600;font-size:12px}
 .project-sidebar .logout-form .side-logout:hover,.global-sidebar .logout-form .side-logout:hover{border-color:#4e604f;background:#233026;color:#fff!important}
 @media(max-width:760px){.karel-project-empty-start{padding:17px}.karel-library-empty{padding:20px}.karel-library-empty h3{font-size:18px}}
+
+
+/* KAREL two-route first impression and guided project source workflow. */
+.karel-two-journeys{margin:0 0 25px}
+.karel-choice-heading{margin:0 0 14px}
+.karel-choice-heading h2{margin:0 0 5px;font-size:22px;line-height:1.35}
+.karel-choice-heading p{margin:0;color:#667463;font-size:14px;line-height:1.6}
+.karel-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.karel-choice-card{display:flex;align-items:flex-start;gap:18px;padding:23px 24px;border-radius:16px;background:#fff;border:1px solid #dbe4d6;min-width:0;box-shadow:0 4px 16px rgba(24,42,22,.035)}
+.karel-choice-card:hover{border-color:#a8c57b}
+.karel-choice-symbol{flex:0 0 52px;width:52px;height:52px;border-radius:14px;background:#eaf3da;color:#425c1a;font-size:18px;display:grid;place-items:center;font-weight:800;letter-spacing:-.02em}
+.karel-choice-symbol.dev{background:#ebeee9;color:#334b38;font-size:18px}
+.karel-choice-card>div{min-width:0;flex:1}
+.karel-choice-card h3{font-size:17px;line-height:1.4;margin:1px 0 7px}
+.karel-choice-card p{font-size:13px;line-height:1.75;color:#606f62;margin:0 0 17px;max-width:50ch}
+.karel-choice-card .btn{font-size:13px}
+.karel-create-intro h2{font-size:22px;margin:5px 0 6px}
+.karel-create-intro p{font-size:13px;color:#647366;margin:0 0 12px}
+.karel-create-actions,.karel-type-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.karel-type-actions form{margin:0}
+#website-url-field[hidden]{display:none!important}
+#website-url-field small{display:block;font-size:11px;line-height:1.6;color:#778174;margin-top:5px}
+.karel-type-choice{display:flex;justify-content:space-between;align-items:center;gap:17px;padding:18px 21px;background:#f7f9f0;border:1px solid #dae5cd;border-radius:15px;margin-bottom:15px}
+.karel-type-choice h3{font-size:17px;margin:7px 0 6px}
+.karel-type-choice p{font-size:13px!important;color:#627263;margin:0!important;line-height:1.65!important}
+.karel-journey{background:#fff;border:1px solid #dae2d6;border-radius:16px;padding:22px 23px;margin:18px 0}
+.karel-journey-head h3{font-size:19px;margin:6px 0}
+.karel-journey-head p{font-size:13px;line-height:1.7;color:#657365;margin:4px 0 16px}
+.karel-journey-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.karel-journey-step{display:flex;align-items:flex-start;gap:12px;border-radius:12px;border:1px solid #e3e9e0;padding:15px;background:#fbfcf9;min-width:0}
+.karel-journey-step.next{background:#f5f8ee;border-color:#d5e2c7}
+.karel-journey-step.planned{background:#fafbfa}
+.karel-journey-index{flex-shrink:0;display:grid;place-items:center;width:31px;height:31px;background:#e8eee2;border-radius:10px;color:#60735c;font-weight:800;font-size:13px}
+.karel-journey-step.done .karel-journey-index{background:#daf0db;color:#276d37}
+.karel-journey-step.next .karel-journey-index{background:#deecbf;color:#47671b}
+.karel-journey-step-body{flex:1;min-width:0}
+.karel-journey-step-top{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.karel-journey-step h4{margin:0 0 6px;font-size:13px;line-height:1.5;font-weight:750}
+.karel-journey-step-top span{font-size:10px;line-height:1.35;color:#6e8066;white-space:nowrap}
+.karel-journey-step.planned .karel-journey-step-top span{color:#8b8271}
+.karel-journey-step p{margin:0 0 10px!important;font-size:12px!important;color:#606c60!important;line-height:1.65!important}
+.karel-journey-step.planned p{color:#778178!important}
+.karel-journey-footer{font-size:11px!important;line-height:1.7!important;color:#737f71!important;margin:14px 0 0!important}
+.karel-wordpress-install{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;border:1px solid #d6e3c8;background:#f6faef;border-radius:16px;padding:22px 24px;margin-top:18px}
+.karel-wordpress-install-main h3{font-size:20px;line-height:1.45;margin:8px 0}
+.karel-wordpress-install-main p{font-size:13px;line-height:1.7;color:#5e6e5b;max-width:70ch}
+.karel-wordpress-install-main small{display:block;margin-top:11px;font-size:11px;line-height:1.6;color:#70806a}
+.karel-wordpress-install-guide{list-style:decimal inside;padding:0;margin:0;display:grid;gap:10px;counter-reset:wp-install}
+.karel-wordpress-install-guide li{list-style:none;position:relative;background:#fff;border:1px solid #e2ebd8;border-radius:12px;padding:12px 14px 12px 42px;counter-increment:wp-install;min-width:0}
+.karel-wordpress-install-guide li::before{content:counter(wp-install);position:absolute;left:13px;top:13px;display:grid;place-items:center;width:22px;height:22px;border-radius:8px;background:#e8f2d3;font-size:12px;font-weight:750}
+.karel-wordpress-install-guide b{display:block;font-size:13px;margin-bottom:5px}
+.karel-wordpress-install-guide span{display:block;font-size:12px;line-height:1.65;color:#677365}
+.karel-website-declared{background:#fff;border:1px solid #e0e5db;border-radius:12px;padding:14px 17px;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.karel-website-declared small{display:block;margin-top:5px;font-size:11px;color:#708075}
+.karel-website-url-edit{background:#fff;border:1px solid #dde5d5;border-radius:11px;padding:14px 16px;margin:10px 0}
+.karel-website-url-edit summary{cursor:pointer;font-size:13px;font-weight:700}
+.karel-website-url-edit form{display:grid;gap:10px;margin-top:15px}
+.karel-website-url-edit label{display:grid;gap:6px;font-size:13px;font-weight:650}
+.karel-website-url-edit input{border:1px solid #ced9c7;border-radius:9px;padding:11px;font-size:14px}
+.karel-website-url-edit p{font-size:12px;line-height:1.7;color:#687669;margin:0}
+.karel-connector-truth{padding:18px 22px;border:1px solid #e5dbc3;background:#fffcf4;border-radius:14px;margin:18px 0}
+.karel-connector-truth strong{font-size:14px}
+.karel-connector-truth p{font-size:13px;line-height:1.7;color:#6b6857}
+.karel-workflow-intro{padding:15px 18px;border:1px solid #dce6d7;background:#f7f9f4;border-radius:13px;margin-bottom:15px}
+.karel-workflow-intro h2{font-size:15px;margin:0 0 6px}
+.karel-workflow-intro p{font-size:13px;line-height:1.65;color:#647267;margin:0 0 9px}
+@media(max-width:1100px){.karel-choice-grid,.karel-journey-steps{grid-template-columns:1fr}.karel-wordpress-install{grid-template-columns:1fr}}
+@media(max-width:760px){
+.karel-choice-card{padding:16px;gap:12px}
+.karel-choice-symbol{width:42px;height:42px;flex-basis:42px;font-size:14px}
+.karel-choice-card h3{font-size:15px}
+.karel-choice-card p{font-size:12px}
+.karel-choice-card .btn{width:100%;padding:10px}
+.karel-type-choice{align-items:stretch;flex-direction:column;padding:15px}
+.karel-type-actions{align-items:stretch;flex-direction:column}
+.karel-type-actions form,.karel-type-actions button{width:100%}
+.karel-journey{padding:15px;margin:14px 0}
+.karel-journey-step{padding:12px}
+.karel-journey-step-top{flex-wrap:wrap}
+.karel-wordpress-install{padding:15px}
+.karel-wordpress-install-main h3{font-size:17px}
+.karel-create-actions{flex-direction:column;align-items:stretch}
+.karel-create-actions .btn{width:100%}
+}
