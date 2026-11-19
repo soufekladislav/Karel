@@ -1,6 +1,6 @@
 """Persistence for GitHub read-only snapshots. GitHub remains source of truth."""
 from datetime import datetime
-import json
+from .github_snapshot_codec import encode_snapshot
 
 from sqlalchemy import select
 from ..models import GitHubRepoLink, ProjectEvent
@@ -16,7 +16,7 @@ def upsert_snapshot(db, project_id: int, user_id: int, snapshot: dict) -> GitHub
         link = GitHubRepoLink(project_id=project_id, repository_full_name=repo)
         db.add(link)
     link.repository_full_name = repo
-    link.snapshot_json = json.dumps(snapshot, ensure_ascii=False)
+    link.snapshot_json = encode_snapshot(snapshot)
     link.last_synced_at = datetime.utcnow()
     link.last_error = None
     link.updated_at = datetime.utcnow()
