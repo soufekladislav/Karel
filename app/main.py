@@ -1446,7 +1446,7 @@ def github_project_page(request: Request, project_id: int, chat_id: int | None =
     active_chat = next((c for c in chats if c.id == chat_id), chats[0] if chats else None)
     recent_messages = (db.scalars(select(Message).where(Message.chat_id == active_chat.id)
                        .order_by(Message.id.desc()).limit(6)).all()[::-1] if active_chat else [])
-    gh_status = github_connection_state(link, bool(settings.github_allowed_owners.strip()))
+    gh_status = github_connection_state(link, True)  # Every owner may read public GitHub repos.
     spec=project_spec(db,p.id)
     mode=project_mode(spec.get('project_type'),github_linked=bool(link))
     journey=journey_for_project(project_id=p.id,mode=mode,github=gh_status,
@@ -1458,8 +1458,8 @@ def github_project_page(request: Request, project_id: int, chat_id: int | None =
         task_counts=type('TaskCounts', (), task_counts)(),
         active_chat=active_chat, recent_messages=recent_messages,
         can_edit=can_edit_project(db, u, p),
-        can_manage=bool(is_superadmin(u) and can_manage_project(db, u, p)),
-        github_allowed=bool(settings.github_allowed_owners.strip()),
+        can_manage=can_manage_project(db, u, p),
+        github_allowed=True,
         can_import_portfolio=is_superadmin(u),
         notice=request.query_params.get('notice', '')[:300],
         error=request.query_params.get('error', '')[:300],
@@ -1471,18 +1471,34 @@ def github_project_sync(request: Request, project_id: int,
                         repository: str = Form(...), db: Session = Depends(get_db)):
     u = require_user(request, db)
     p = get_project_or_404(db, u, project_id, manage=True)
-    if not is_superadmin(u):
-        raise HTTPException(403, 'Připojení GitHub repozitáře smí měnit pouze superadmin.')
+    if p.status == 'archived':
+        raise HTTPException(409, 'Archivovaný projekt nesynchronizujeme.')
     link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    admin_private_mode = bool(is_superadmin(u) and settings.github_allowed_owners.strip())
     try:
-        repo = validate_repository(repository, settings.github_allowed_owners)
-        occupied = db.scalar(select(GitHubRepoLink).where(
+        # Public projects of ordinary users use ANONYMOUS GitHub API requests;
+        # never authorize with the shared administrative private-repo token.
+        owner = (repository or '').strip().split('/', 1)[0]
+        allowed = settings.github_allowed_owners if admin_private_mode else owner
+        repo = validate_repository(repository, allowed)
+        occupied = db.scalar(select(GitHubRepoLink).join(
+            Project, Project.id == GitHubRepoLink.project_id
+        ).where(
+            Project.owner_id == p.owner_id,
             func.lower(GitHubRepoLink.repository_full_name) == repo.lower(),
             GitHubRepoLink.project_id != p.id))
         if occupied:
-            raise GitHubSyncError('Tento repozitář je již přiřazen jinému projektu v Karlovi.')
-        with GitHubReader(token=settings.github_read_token) as reader:
-            snapshot = reader.snapshot(repo, settings.github_allowed_owners)
+            raise GitHubSyncError('Tento repozitář již používáš v jiném vlastním projektu.')
+        if not admin_private_mode and link and link.last_synced_at and (
+            link.repository_full_name.lower() == repo.lower()
+        ) and (datetime.utcnow()-link.last_synced_at).total_seconds() < 300:
+            raise GitHubSyncError('GitHub byl načten před chvílí. Další obnovu můžeš spustit po pěti minutách.')
+        with GitHubReader(token=settings.github_read_token if admin_private_mode else '') as reader:
+            snapshot = reader.snapshot(repo, allowed)
+        if not admin_private_mode and snapshot.get('private'):
+            raise GitHubSyncError(
+                'Soukromé repozitáře vyžadují samostatné autorizované připojení GitHub účtu.'
+            )
     except GitHubSyncError as exc:
         if link:
             link.last_error = str(exc)[:350]
@@ -1493,6 +1509,25 @@ def github_project_sync(request: Request, project_id: int,
     upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
     return RedirectResponse('/projects/' + str(p.id) +
                             '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
+
+
+@app.post('/projects/{project_id}/github/disconnect')
+def github_project_disconnect(request: Request, project_id: int,
+                              confirmed: str=Form(''), db: Session=Depends(get_db)):
+    user=require_user(request,db)
+    project=get_project_or_404(db,user,project_id,manage=True)
+    if confirmed != 'disconnect':
+        raise HTTPException(400, 'Odpojení GitHubu musíš výslovně potvrdit.')
+    link=db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id==project.id))
+    if link:
+        repository=link.repository_full_name
+        db.delete(link)
+        db.add(ProjectEvent(project_id=project.id,user_id=user.id,
+                            event_type='github_disconnected',detail='Read-only cache disconnected: '+repository))
+        db.commit()
+    return RedirectResponse(
+        f'/projects/{project.id}/github?notice='+
+        quote('GitHub vazba a uložená čtecí data byly odstraněny z Karla. Repozitář na GitHubu zůstává beze změny.'),303)
 
 
 # GitHub project onboarding is user-facing; until per-user GitHub OAuth is
