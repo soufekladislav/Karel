@@ -50,6 +50,7 @@
             <td>
               <input type="checkbox" name="repositories" value="{{ item.full_name }}"
                   id="import-{{ loop.index }}" aria-label="Vybrat {{ item.full_name }}"
+                  data-requires-map="{{ '1' if item.action == 'review' else '0' }}"
                   {% if item.action == 'linked' %}disabled{% endif %}>
             </td>
             <td>
@@ -99,6 +100,13 @@
     const manualTargets=chosen.map(box=>({
       repo:box.value, selected:form.elements.namedItem('map_'+box.value)?.value||''
     })).filter(item=>item.selected);
+    const ambiguous=chosen.find(box=>box.dataset.requiresMap==='1' &&
+      !(form.elements.namedItem('map_'+box.value)?.value||''));
+    if(ambiguous){
+      event.preventDefault();
+      window.alert('U nejednoznačného repozitáře musíš vybrat konkrétní existující projekt.');
+      return;
+    }
     const values=manualTargets.map(item=>item.selected);
     if(new Set(values).size!==values.length){
       event.preventDefault();window.alert('Jeden projekt nelze přiřadit více repozitářům.');return;
