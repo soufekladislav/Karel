@@ -34,19 +34,22 @@
   <a class="{% if view in ['development','tasks','testing','releases','outputs','history','files','components'] %}active{% endif %}" href="/projects/{{ project.id }}?view=development" {% if view=='development' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">PL</span><b>Pipeline projektu</b>
   </a>
+  <a class="{% if view=='manage' %}active{% endif %}" href="/projects/{{ project.id }}?view=manage" {% if view=='manage' %}aria-current="page"{% endif %}>
+    <span class="karel-nav-icon" aria-hidden="true">SP</span><b>Správa projektu</b>
+  </a>
   {% else %}
   <a href="/" class="{% if request.url.path=='/' %}active{% endif %}"><span class="karel-nav-icon" aria-hidden="true">PR</span><b>Moje projekty</b></a>
   {% endif %}
   <a href="/library" class="{% if request.url.path=='/library' %}active{% endif %}" {% if request.url.path=='/library' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">KN</span><b>Knihovny</b>
   </a>
-  <a href="/settings" class="{% if request.url.path in ['/settings','/account','/admin'] or (project and view=='settings') %}active{% endif %}" {% if request.url.path=='/settings' %}aria-current="page"{% endif %}>
+  <a href="/settings" class="{% if request.url.path in ['/settings','/account','/admin'] %}active{% endif %}" {% if request.url.path=='/settings' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">NA</span><b>Nastavení a účet</b>
   </a>
 </nav>
 
 <div class="side-bottom unified-bottom karel-side-footer">
-  {% if project %}<a href="/projects/{{ project.id }}?view=settings">Nastavení tohoto projektu</a>{% endif %}
+  {% if project %}<a href="/projects/{{ project.id }}?view=settings">Připojení a zdroje projektu</a>{% endif %}
   <a href="/account">Můj účet</a>
   {% if user.role=='superadmin' or user.email=='soufek@freshcrackers.cz' %}<a href="/admin">Admin konzole</a>{% endif %}
   <form method="post" action="/logout" class="logout-form"><button type="submit" class="side-logout">Odhlásit se</button></form>
