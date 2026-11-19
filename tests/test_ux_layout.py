@@ -17,7 +17,7 @@ class WorkspaceUxTests(unittest.TestCase):
 
     def test_existing_templates_remain_parseable(self):
         for name in ('base.html', '_sidebar.html', '_project_mobile_nav.html', 'project.html', 'dashboard.html',
-                     'library.html', 'github.html', 'settings.html', 'account.html', 'admin.html'):
+                     'library.html', 'github.html', '_project_journey.html', 'settings.html', 'account.html', 'admin.html'):
             with self.subTest(template=name):
                 self.templates.get_template(name)
 
@@ -88,12 +88,33 @@ class WorkspaceUxTests(unittest.TestCase):
         project = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
         library = (ROOT / 'app' / 'templates' / 'library.html').read_text(encoding='utf-8')
         settings = (ROOT / 'app' / 'templates' / 'settings.html').read_text(encoding='utf-8')
-        self.assertIn('{% if not project_has_activity %}', project)
+        self.assertIn("{% if not project_has_activity and project_mode == 'general' %}", project)
         self.assertIn('class="karel-project-empty-start"', project)
         self.assertIn('Projektové workflow · 7 etap', project)
         self.assertIn('karel-library-empty', library)
         self.assertIn('Přidat první položku', library)
         self.assertNotIn('<details class="fresh-detail" open><summary>Fresh Key', settings)
+
+    def test_wordpress_and_github_have_distinct_workflows_in_ui(self):
+        dashboard=(ROOT/'app'/'templates'/'dashboard.html').read_text(encoding='utf-8')
+        project=(ROOT/'app'/'templates'/'project.html').read_text(encoding='utf-8')
+        nav=(ROOT/'app'/'templates'/'_sidebar.html').read_text(encoding='utf-8')
+        mobile=(ROOT/'app'/'templates'/'_project_mobile_nav.html').read_text(encoding='utf-8')
+        journey=(ROOT/'app'/'templates'/'_project_journey.html').read_text(encoding='utf-8')
+        main=(ROOT/'app'/'main.py').read_text(encoding='utf-8')
+        self.assertIn('Mám WordPress web', dashboard)
+        self.assertIn('Vyvíjím aplikaci nebo web', dashboard)
+        self.assertIn('name="project_mode_choice"', dashboard)
+        self.assertIn('name="website_url"', dashboard)
+        self.assertIn("view == 'website'", project)
+        self.assertIn("www.freshcrackers.cz/produkt/fresh-core/", project)
+        self.assertIn('Fresh Core', project)
+        self.assertIn("include '_project_journey.html'", project)
+        self.assertIn('Připravujeme', journey)
+        self.assertIn('Můj WordPress', nav)
+        self.assertIn("view=='website'", mobile)
+        self.assertIn("@app.post('/projects/{project_id}/mode')", main)
+        self.assertIn("@app.post('/projects/{project_id}/website-url')", main)
 
     def test_context_chat_retains_screen_and_authoritative_approval(self):
         page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
