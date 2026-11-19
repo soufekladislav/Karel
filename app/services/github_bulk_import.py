@@ -119,7 +119,7 @@ def prepare_import_plan(db, user_id: int, repositories: list[dict]) -> list[dict
     return entries
 
 
-def apply_import_plan(db, user_id: int, plan: list[dict], selected: list[str]) -> dict:
+def apply_import_plan(db, user_id: int, plan: list[dict], selected: list[str], mapping: dict[str, int] | None = None) -> dict:
     """Explicit, bounded, repeat-safe DB write. Never delete or replace a project."""
     approved = set(s.lower() for s in selected)
     if len(selected) > MAX_APPLY or len(approved) != len(selected):
@@ -127,19 +127,42 @@ def apply_import_plan(db, user_id: int, plan: list[dict], selected: list[str]) -
     if any(s not in {str(p['full_name']).lower() for p in plan} for s in approved):
         raise ValueError('Výběr neodpovídá ověřenému seznamu GitHubu.')
     result = {'created': 0, 'attached': 0, 'skipped': 0, 'linked': 0}
-    # Re-evaluate against DB immediately before committing to prevent stale previews.
+    # Explicit manual mappings are allowed only to the importing user's
+    # currently unlinked local projects. They never modify existing content.
+    overrides = {str(k).lower(): int(v) for k, v in (mapping or {}).items()}
+    if any(k not in approved or v <= 0 for k, v in overrides.items()):
+        raise ValueError('Ruční mapování musí odpovídat schválenému výběru.')
+    if len(set(overrides.values())) != len(overrides):
+        raise ValueError('Jeden projekt nelze zároveň propojit s více repozitáři.')
     fresh = prepare_import_plan(db, user_id, plan)
+    automatic_ids = {
+        i['local_project_id'] for i in fresh
+        if i['full_name'].lower() in approved and i['action'] == 'attach'
+        and i['full_name'].lower() not in overrides
+    }
+    if automatic_ids.intersection(overrides.values()):
+        raise ValueError('Jeden projekt byl přiřazen dvěma repozitářům.')
     try:
         for item in fresh:
-            if item['full_name'].lower() not in approved:
+            repo_key = item['full_name'].lower()
+            if repo_key not in approved:
                 continue
             if item['action'] == 'linked':
                 result['linked'] += 1
                 continue
-            if item['action'] == 'review':
+            explicit_id = overrides.get(repo_key)
+            if explicit_id is not None:
+                p = db.get(Project, explicit_id)
+                if not p or p.owner_id != user_id:
+                    raise ValueError('Cílový projekt nepatří přihlášenému uživateli.')
+                occupied = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+                if occupied:
+                    raise ValueError('Vybraný projekt už má přiřazený GitHub repozitář.')
+                result['attached'] += 1
+            elif item['action'] == 'review':
                 result['skipped'] += 1
                 continue
-            if item['action'] == 'attach':
+            elif item['action'] == 'attach':
                 p = db.get(Project, item['local_project_id'])
                 if not p or p.owner_id != user_id:
                     result['skipped'] += 1
