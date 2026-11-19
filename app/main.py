@@ -379,7 +379,7 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
         overview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,175,
                        'Obchodní cíl projektu zatím není popsán.')
         dashboard_projects.append({
-            'project':p,'spec':spec,'counts':counts,
+            'project':p,'spec':spec,'counts':counts,'can_edit':can_edit_project(db,u,p),
             'open':sum(counts.get(key,0) for key in ('todo','working','waiting_user','testing','failed')),
             'goal_preview':overview,'has_goal':bool(spec.get('business_goal') or spec.get('purpose') or p.description),
             'project_mode':mode,'fresh_core_status':fc_state,'github_status':gh,'github_link':link,
@@ -405,7 +405,8 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             fresh_requests=fresh_key.pending_link_requests(u)
         except Exception as exc:
             fresh_error=str(exc)
-    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,
+    archived_management={p.id:can_manage_project(db,u,p) for p in archived_projects}
+    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,archived_management=archived_management,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,
         github_configured=github_enabled,can_import_portfolio=is_superadmin(u)))
 
 @app.post('/projects')
