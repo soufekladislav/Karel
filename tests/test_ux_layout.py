@@ -84,6 +84,17 @@ class WorkspaceUxTests(unittest.TestCase):
         self.assertIn("guide=project-start", page)
         self.assertIn('guide=project-start', main)
 
+    def test_empty_project_and_library_have_guided_actions(self):
+        project = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
+        library = (ROOT / 'app' / 'templates' / 'library.html').read_text(encoding='utf-8')
+        settings = (ROOT / 'app' / 'templates' / 'settings.html').read_text(encoding='utf-8')
+        self.assertIn('{% if not project_has_activity %}', project)
+        self.assertIn('class="karel-project-empty-start"', project)
+        self.assertIn('Projektové workflow · 7 etap', project)
+        self.assertIn('karel-library-empty', library)
+        self.assertIn('Přidat první položku', library)
+        self.assertNotIn('<details class="fresh-detail" open><summary>Fresh Key', settings)
+
     def test_context_chat_retains_screen_and_authoritative_approval(self):
         page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
         main = (ROOT / 'app' / 'main.py').read_text(encoding='utf-8')
