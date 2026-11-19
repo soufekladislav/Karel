@@ -95,7 +95,7 @@ class PortfolioTemplateTests(unittest.TestCase):
         )
         html = env.get_template("github.html").render(**values)
         self.assertIn("Nepřipojeno", html)
-        self.assertIn("Repozitář není přiřazen", html)
+        self.assertIn("Připojíme tvůj GitHub projekt", html)
         self.assertNotIn("načtených Issues", html)
         self.assertNotIn("Žádná Issues ve staženém snímku", html)
 
