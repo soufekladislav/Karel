@@ -769,27 +769,39 @@ def archive_project(request:Request, project_id:int, archived:int=Form(1), db:Se
     return RedirectResponse('/?notice='+quote('Projekt byl archivován.' if p.status=='archived' else 'Projekt byl obnoven.'),303)
 
 @app.post('/projects/{project_id}/delete')
-def delete_project(request:Request, project_id:int, db:Session=Depends(get_db)):
+def delete_project(request:Request, project_id:int, confirmation_name:str=Form(''),
+                   db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,manage=True)
     if (p.status or 'active')!='archived':
         return redirect_project(p.id,error='Projekt lze smazat až po archivaci.')
-    # Smazání je úmyslně dvoukrokové: nejdřív archivace, potom trvalé odstranění.
-    chats=db.scalars(select(Chat).where(Chat.project_id==p.id)).all(); chat_ids=[c.id for c in chats]
+    if confirmation_name.strip() != p.name:
+        return redirect_project(p.id,error='Pro trvalé smazání opiš přesný název projektu.')
+    # Every FK referencing projects.id must be deleted in a single DB
+    # transaction, including stages and GitHub link introduced after v1.
+    chats=db.scalars(select(Chat).where(Chat.project_id==p.id)).all()
+    chat_ids=[c.id for c in chats]
     if chat_ids:
-        for msg in db.scalars(select(Message).where(Message.chat_id.in_(chat_ids))).all(): db.delete(msg)
+        for msg in db.scalars(select(Message).where(Message.chat_id.in_(chat_ids))).all():
+            db.delete(msg)
     files=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id)).all()
+    file_names=[row.stored_name for row in files]
     for pf in files: pf.parent_file_id=None
     db.flush()
-    for pf in files:
-        try: absolute_path(pf.stored_name).unlink(missing_ok=True)
-        except Exception: pass
-        db.delete(pf)
-    for model in (Task, ProjectMemory, ProjectEvent, ProjectMember, ProjectInvitation):
-        for row in db.scalars(select(model).where(model.project_id==p.id)).all(): db.delete(row)
+    for pf in files: db.delete(pf)
+    db.flush()
+    for model in (Task, ProjectMemory, ProjectEvent, ProjectMember, ProjectInvitation,
+                  ProjectStage, GitHubRepoLink):
+        for row in db.scalars(select(model).where(model.project_id==p.id)).all():
+            db.delete(row)
     for c in chats: db.delete(c)
-    db.delete(p); db.commit()
+    db.delete(p)
+    # Only after a successful commit may the physical files be removed.
+    db.commit()
+    for stored_name in file_names:
+        try: absolute_path(stored_name).unlink(missing_ok=True)
+        except (OSError, ValueError): pass
     try: shutil.rmtree(settings.uploads_dir / str(project_id), ignore_errors=True)
-    except Exception: pass
+    except OSError: pass
     return RedirectResponse('/?notice='+quote('Projekt byl trvale smazán.'),303)
 
 @app.post('/projects/{project_id}/chat/{chat_id}/send')
@@ -1080,6 +1092,44 @@ def task_delete(request:Request, task_id:int, db:Session=Depends(get_db)):
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='task_deleted',detail=f'TASK-{task_id}: {title}'))
     db.commit()
     return RedirectResponse(f'/projects/{p.id}?view=tasks&notice='+quote('Archivovaný úkol byl smazán.'),303)
+
+@app.post('/files/{file_id}/archive')
+def archive_project_file(request:Request, file_id:int, archived:int=Form(1),
+                         db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    pf=db.get(ProjectFile,file_id)
+    if not pf: raise HTTPException(404)
+    project=get_project_or_404(db,u,pf.project_id,write=True)
+    pf.status='archived' if archived else 'current'
+    db.add(ProjectEvent(project_id=project.id,user_id=u.id,
+                        event_type='file_archived' if archived else 'file_restored',
+                        detail='FILE-'+str(pf.id)+': '+pf.name[:120]))
+    db.commit()
+    return RedirectResponse(f'/projects/{project.id}?view=files',303)
+
+
+@app.post('/files/{file_id}/delete')
+def delete_archived_project_file(request:Request, file_id:int,
+                                 db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    pf=db.get(ProjectFile,file_id)
+    if not pf: raise HTTPException(404)
+    project=get_project_or_404(db,u,pf.project_id,write=True)
+    if pf.status != 'archived':
+        raise HTTPException(409,'Soubor lze smazat až po archivaci.')
+    for row in db.scalars(select(ProjectFile).where(
+        ProjectFile.parent_file_id==pf.id)).all():
+        row.parent_file_id=None
+    stored_name=pf.stored_name
+    filename=pf.name[:120]
+    db.delete(pf)
+    db.add(ProjectEvent(project_id=project.id,user_id=u.id,
+                        event_type='file_deleted',detail=filename))
+    db.commit()
+    try: absolute_path(stored_name).unlink(missing_ok=True)
+    except (OSError, ValueError): pass
+    return RedirectResponse(f'/projects/{project.id}?view=files',303)
+
 
 @app.get('/files/{file_id}')
 def download_file(request:Request,file_id:int,db:Session=Depends(get_db)):
