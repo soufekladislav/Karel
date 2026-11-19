@@ -184,7 +184,9 @@ class FreshCoreVaultAndProjectTests(unittest.TestCase):
         before=connection_state(self.db,self.project_id)["snapshot"]
         with self.assertRaises(FreshCoreError):
             connect_readonly(self.db,self.project_id,self.user_id,SITE,"wrong-key",
-                             reader_factory=lambda s,k: FreshCoreReader(s,k,client=transport()))
+                reader_factory=lambda s,k: FreshCoreReader(
+                    s,k,client=httpx.Client(transport=httpx.MockTransport(
+                        lambda _request:httpx.Response(403)))))
         self.assertEqual(connection_state(self.db,self.project_id)["snapshot"],before)
         self.assertEqual(len(self.db.scalars(select(ProjectMemory)).all()),2)
 
