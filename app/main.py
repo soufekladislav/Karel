@@ -371,7 +371,8 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             deadline_alerts.append({'project':p,'message':warning['text'],'days':warning['days']})
         counts={status: db.scalar(select(func.count(Task.id)).where(Task.project_id==p.id, Task.status==status)) or 0 for status in STATUS_LABELS}
         link=github_links.get(p.id)
-        gh=github_connection_state(link,github_enabled)
+        gh=github_connection_state(
+            link, github_enabled or not is_superadmin(u) or bool(link and link.last_synced_at))
         fc_state=fresh_core_state(db,p.id) if mode=='wordpress' else {'kind':'unlinked'}
         next_step=project_next_step(spec,counts,gh,alerts,mode=mode,
                                    fresh_connected=fc_state['kind']=='synced')
