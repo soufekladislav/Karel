@@ -130,6 +130,29 @@ class PortfolioTemplateTests(unittest.TestCase):
         self.assertIn("načtených Issues", html)
         self.assertIn("uložený snímek", html)
 
+    def test_import_preview_renders_manual_project_mapping_unselected(self):
+        env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")),
+                          autoescape=True)
+        repo = {
+            "full_name": "soufekladislav/Karel", "description": "Code",
+            "html_url": "https://github.com/soufekladislav/Karel",
+            "archived": False, "private": False, "action": "create",
+            "reason": "", "local_project_id": None,
+        }
+        html = env.get_template("github_import.html").render(
+            app_name="Karel", user=None,
+            request=SimpleNamespace(query_params={}), allowed_owners="soufekladislav",
+            has_token=False, notice="", error="", truncated=False,
+            repositories=[repo], plan=[repo], csrf_token="test-token",
+            available_projects=[SimpleNamespace(id=2, name="Developer Karel")],
+        )
+        self.assertIn('action="/github/import"', html)
+        self.assertIn("Developer Karel", html)
+        self.assertIn('name="map_soufekladislav/Karel"', html)
+        self.assertIn("Vytvořit nový projekt", html)
+        self.assertIn("Založení nového projektu", html)
+        self.assertNotIn('name="repositories" value="soufekladislav/Karel" checked', html)
+
     def test_empty_portfolio_has_real_onboarding(self):
         env = Environment(loader=FileSystemLoader(str(ROOT / "app" / "templates")),
                           autoescape=True)
