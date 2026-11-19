@@ -35,6 +35,16 @@ def collect_security_checks(settings, bootstrap_state: dict) -> dict:
             'detail': 'Přihlašovací cookies jsou omezené na HTTPS.' if settings.https_only else 'SESSION_HTTPS_ONLY není zapnuto.',
         },
         {
+            'id': 'fresh-core-read',
+            'label': 'Fresh Core – čtecí konektor',
+            'state': 'ok' if (getattr(settings,'fresh_core_vault_key','')
+                              and getattr(settings,'fresh_core_allowed_hosts','')) else 'unverified',
+            'detail': 'Šifrovací vault a seznam povolených WordPress hostitelů jsou nakonfigurovány; toto není živý test webu.'
+                      if (getattr(settings,'fresh_core_vault_key','')
+                          and getattr(settings,'fresh_core_allowed_hosts',''))
+                      else 'Pro bezpečné připojení WordPressu nastav FRESH_CORE_VAULT_KEY a FRESH_CORE_ALLOWED_HOSTS.',
+        },
+        {
             'id': 'manifest-hosts',
             'label': 'Důvěryhodné zdroje manifestů',
             'state': 'ok' if settings.manifest_allowed_hosts else 'warning',
