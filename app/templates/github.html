@@ -62,7 +62,7 @@
             <input name="repository" value="{{ link.repository_full_name if link else '' }}"
                    placeholder="soufekladislav/Karel" maxlength="201" required>
           </label>
-          <p>Karel data jen načte; nemění GitHub Issues, Pull Requesty ani zdrojový kód.</p>
+          <p>{% if can_import_portfolio %}Karel používá povolený čtecí přístup správce; nikdy nezapisuje Issues ani kód.{% else %}Prozatím lze bezpečně propojit <strong>veřejné repozitáře</strong> bez GitHub hesla nebo tokenu. Připojení privátního účtu přes GitHub App teprve připravujeme.{% endif %}</p>
           <button type="submit" class="btn primary">{{ 'Načíst aktuální stav' if link else 'Připojit a načíst' }}</button>
         </form>
       </section>
@@ -72,6 +72,17 @@
       <p class="karel-github-disclaimer">Zákaznické přihlášení k vlastnímu GitHubu zatím připravujeme. Sdílené přihlašovací údaje se do chatu nezadávají.</p>
       {% endif %}
 
+      {% if link and can_manage %}
+      <details class="karel-connector-disconnect">
+        <summary>Odpojit tento repozitář od Karla</summary>
+        <p>Odstraníme místní vazbu a načtený snímek. Repozitář, Issues i PR zůstanou v GitHubu beze změny.</p>
+        <form method="post" action="/projects/{{ project.id }}/github/disconnect"
+              onsubmit="return confirm('Opravdu odpojit repozitář od Karla?')">
+          <input type="hidden" name="confirmed" value="disconnect">
+          <button class="btn danger small">Odpojit GitHub</button>
+        </form>
+      </details>
+      {% endif %}
       {% if link and snapshot and github_status.kind in ('synced','error') %}
       <section class="karel-github-metrics" aria-label="Načtená GitHub data">
         <div><strong>{{ snapshot.counts.open_issues }}</strong><span>otevřených Issues · {{ snapshot.counts.issues_loaded }} načtených Issues</span></div>
