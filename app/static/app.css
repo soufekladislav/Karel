@@ -592,3 +592,46 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
  .karel-manageable-files .files-row>span:first-child{flex-basis:100%}
  .karel-manageable-files .files-row>span:last-child{margin-left:auto}
 }
+
+
+/* Project management is a primary task, not a hidden technical configuration. */
+.karel-project-management{max-width:1060px;margin-inline:auto}
+.karel-project-management .view-head{margin-bottom:19px}
+.karel-manage-status{background:#f5f8ef;border:1px solid #dce8cd;border-radius:13px;padding:18px 20px;margin:0 0 16px}
+.karel-manage-status>div{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.karel-manage-status strong{font-size:18px;overflow-wrap:anywhere}
+.karel-manage-status p{margin:9px 0 0;font-size:13px;color:#62705f;line-height:1.6}
+.karel-manage-state{border-radius:999px;background:#e0f0c7;color:#365b17;font-size:11px;padding:5px 10px;font-weight:750}
+.karel-manage-state.archived{background:#f3ede3;color:#725735}
+.karel-manage-block{margin:0 0 16px;padding:19px 21px;background:#fff;border:1px solid #dde5d8;border-radius:13px}
+.karel-manage-block .settings-block-head{margin-bottom:13px}
+.karel-manage-block .settings-block-head h3{font-size:16px;line-height:1.5;margin:0 0 5px}
+.karel-manage-block .settings-block-head p{font-size:13px;line-height:1.65;color:#6b786a;margin:0}
+.karel-manage-edit{display:grid;gap:15px}
+.karel-manage-edit label{display:grid;gap:7px;font-size:13px;font-weight:700}
+.karel-manage-edit input,.karel-manage-edit textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #d0daca;background:#fbfcfa;font-size:14px;line-height:1.5}
+.karel-manage-edit .btn{justify-self:start}
+.karel-manage-shortcuts{display:flex;gap:10px;flex-wrap:wrap}
+.karel-manage-block.danger-zone{background:#fffdf9;border-color:#e9dccc}
+.karel-manage-archive-form{margin-top:13px}
+.karel-manage-warning{font-size:12px;color:#7a6e5a;line-height:1.65;margin:12px 0 0}
+.karel-danger-disclosure{margin-top:20px;background:#fff;border:1px solid #ead6cd;border-radius:12px;padding:16px 17px}
+.karel-danger-disclosure summary{cursor:pointer;color:#863c30;font-weight:700;font-size:13px}
+.karel-danger-disclosure>p{font-size:12px;line-height:1.75;color:#6c5d55;margin:12px 0}
+.karel-danger-disclosure .btn.danger{justify-self:start}
+.karel-project-settings-shortcut{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-radius:13px;background:#f1f6e5;border:1px solid #d7e3c7;margin-bottom:18px}
+.karel-project-settings-shortcut h3{font-size:15px;margin:0 0 6px}
+.karel-project-settings-shortcut p{font-size:12px;line-height:1.65;color:#657364;margin:0}
+.karel-project-settings-shortcut .btn{flex-shrink:0}
+.karel-manage-card-link{font-weight:750}
+.karel-archive-empty{font-size:13px;color:#657265;padding:14px}
+@media(max-width:760px){
+ .karel-manage-block{padding:15px}
+ .karel-manage-status{padding:16px}
+ .karel-manage-edit .btn,.karel-manage-archive-form .btn{width:100%;justify-self:stretch}
+ .karel-manage-shortcuts{flex-direction:column}
+ .karel-manage-shortcuts .btn{width:100%}
+ .karel-project-settings-shortcut{align-items:stretch;flex-direction:column}
+ .karel-project-settings-shortcut .btn{width:100%}
+ .karel-danger-disclosure .btn.danger{width:100%}
+}
