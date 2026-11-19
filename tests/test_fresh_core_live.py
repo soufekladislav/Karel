@@ -169,7 +169,7 @@ class FreshCoreVaultAndProjectTests(unittest.TestCase):
         self.assertEqual(snap["plugin_version"],"0.7.8")
         rows=self.db.scalars(select(ProjectMemory).where(
             ProjectMemory.project_id==self.project_id)).all()
-        self.assertEqual(len(rows),2)
+        self.assertEqual(len(rows),3)  # credential, verified snapshot and baseline audit
         self.assertNotIn(READ_KEY," ".join(x.content for x in rows))
         self.assertFalse(next(x for x in rows if x.kind=="fresh_core_read_credential").verified)
         refresh_readonly(self.db,self.project_id,self.user_id,SITE,reader_factory=self._reader)
@@ -188,7 +188,37 @@ class FreshCoreVaultAndProjectTests(unittest.TestCase):
                     s,k,client=httpx.Client(transport=httpx.MockTransport(
                         lambda _request:httpx.Response(403)))))
         self.assertEqual(connection_state(self.db,self.project_id)["snapshot"],before)
-        self.assertEqual(len(self.db.scalars(select(ProjectMemory)).all()),2)
+        self.assertEqual(len(self.db.scalars(select(ProjectMemory)).all()),3)
+
+    def test_refresh_detects_changes_and_preserves_old_inventory(self):
+        from app.services.fresh_core_project import HISTORY_KIND
+        initial=connect_readonly(self.db,self.project_id,self.user_id,SITE,READ_KEY,
+                                 reader_factory=self._reader)
+        changed=json.loads(json.dumps(initial))
+        changed["fetched_at"]="2026-11-20T00:30:00Z"
+        changed["active_plugins"][0]["version"]="0.7.9"
+
+        class Reader:
+            def __init__(self, site, key):
+                assert site == SITE and key == READ_KEY
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return None
+            def read_snapshot(self):
+                return changed
+
+        refresh_readonly(self.db,self.project_id,self.user_id,SITE,
+                         reader_factory=Reader)
+        state=connection_state(self.db,self.project_id)
+        self.assertEqual(state["audit"]["status"],"changed")
+        self.assertTrue(any(
+            c["area"] == "plugins" for c in state["audit"]["changes"]))
+        history=self.db.scalars(select(ProjectMemory).where(
+            ProjectMemory.kind == HISTORY_KIND)).all()
+        self.assertEqual(len(history),1)
+        self.assertEqual(json.loads(history[0].content)["plugin_version"], "0.7.8")
+        self.assertNotIn(READ_KEY,history[0].content)
 
     def test_vault_misconfiguration_rejects_key(self):
         with patch.object(settings,"fresh_core_vault_key",""):

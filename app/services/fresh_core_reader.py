@@ -119,6 +119,57 @@ def _safe_text(value, limit=130) -> str:
     return str(value or "").strip()[:limit]
 
 
+def _menu_inventory(menus: list) -> list[dict]:
+    """Retain only structural menu fingerprints; never persist link targets."""
+    result = []
+    for m in menus[:60]:
+        if not isinstance(m, dict):
+            continue
+        items = m.get("items") or []
+        if not isinstance(items, list):
+            continue
+        safe_items = [
+            {"id": i.get("id"), "parent": i.get("parent"), "title": _safe_text(i.get("title"), 100),
+             "object_id": i.get("object_id"), "order": i.get("order")}
+            for i in items[:200] if isinstance(i, dict)
+        ]
+        fingerprint = hashlib.sha256(json.dumps(
+            safe_items, ensure_ascii=False, sort_keys=True,
+        ).encode("utf-8")).hexdigest()[:20]
+        result.append({"id": m.get("id"), "name": _safe_text(m.get("name"), 90),
+                       "item_count": len(items), "fingerprint": fingerprint,
+                       "partial": len(items) > 200})
+    return result
+
+
+def _template_inventory(data: dict) -> tuple[list[dict], bool]:
+    templates = data.get("elementor_templates") or []
+    if not isinstance(templates, list):
+        return [], True
+    result = []
+    for t in templates[:100]:
+        if not isinstance(t, dict):
+            continue
+        result.append({"id": t.get("id"), "title": _safe_text(t.get("title"), 120),
+                       "document_type": _safe_text(t.get("document_type"), 80),
+                       "post_type": _safe_text(t.get("post_type"), 80)})
+    return result, len(templates) > 100
+
+
+def _category_inventory(data: dict) -> dict:
+    categories = data.get("categories") or {}
+    if not isinstance(categories, dict):
+        return {}
+    result = {}
+    for key, value in list(categories.items())[:12]:
+        if isinstance(value, dict):
+            result[_safe_text(key, 64)] = {
+                "count": max(0, int(value.get("count") or 0)),
+                "partial": bool(value.get("truncated")),
+            }
+    return result
+
+
 def sanitize_snapshot(data: dict, site: str, plugin_version: str) -> dict:
     """Only a small whitelisted site/technical summary enters Karel's DB/AI context."""
     if not isinstance(data, dict) or not isinstance(data.get("manifest"), dict):
@@ -131,6 +182,10 @@ def sanitize_snapshot(data: dict, site: str, plugin_version: str) -> dict:
     taxonomies = data.get("taxonomies") or []
     menus = data.get("menus") or []
     elementor = data.get("elementor_overview") or {}
+    modules = data.get("fresh_modules") or {}
+    templates, templates_partial = _template_inventory(data)
+    if not isinstance(modules, dict):
+        modules = {}
     if not all(isinstance(v, dict) for v in (site_data, runtime, theme, elementor)):
         raise FreshCoreError("Fresh Core vrátil neočekávaná data webu.")
     if not all(isinstance(v, list) for v in (plugins, post_types, taxonomies, menus)):
@@ -143,14 +198,17 @@ def sanitize_snapshot(data: dict, site: str, plugin_version: str) -> dict:
         "site_language": _safe_text(site_data.get("language"), 30),
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "plugin_version": _safe_text(plugin_version, 24),
+        "manifest_generated_at_gmt": _safe_text(data.get("generated_at_gmt"), 48),
         "wordpress_version": _safe_text(runtime.get("wordpress"), 30),
         "php_version": _safe_text(runtime.get("php"), 30),
         "woocommerce_version": _safe_text(runtime.get("woocommerce"), 30),
         "elementor_version": _safe_text(runtime.get("elementor"), 30),
-        "theme": {"name": _safe_text(theme.get("name")), "version": _safe_text(theme.get("version"), 30)},
+        "theme": {"name": _safe_text(theme.get("name")), "version": _safe_text(theme.get("version"), 30),
+                  "stylesheet": _safe_text(theme.get("stylesheet"), 100)},
         "active_plugin_count": len(plugins),
         "active_plugins": [
-            {"name": _safe_text(p.get("name")), "version": _safe_text(p.get("version"), 40)}
+            {"file": _safe_text(p.get("file"), 160),
+             "name": _safe_text(p.get("name")), "version": _safe_text(p.get("version"), 40)}
             for p in plugins[:MAX_PLUGINS] if isinstance(p, dict)
         ],
         "post_types": [
@@ -164,7 +222,25 @@ def sanitize_snapshot(data: dict, site: str, plugin_version: str) -> dict:
             for t in taxonomies[:MAX_TAXONOMIES] if isinstance(t, dict)
         ],
         "menu_count": len(menus),
+        "menu_index": _menu_inventory(menus),
         "elementor_document_count": int(elementor.get("document_count") or 0),
+        "elementor_templates": templates,
+        "fresh_modules": {
+            _safe_text(k, 50): {"detected": bool(v.get("detected")),
+                                "version": _safe_text(v.get("version"), 30)}
+            for k, v in list(modules.items())[:15] if isinstance(v, dict)
+        },
+        "category_inventory": _category_inventory(data),
+        "coverage": {
+            "menus_partial": len(menus) > 60 or any(
+                bool(m.get("partial")) for m in _menu_inventory(menus)),
+            "templates_partial": templates_partial,
+            "plugins_partial": len(plugins) > MAX_PLUGINS,
+            "post_types_partial": len(post_types) > MAX_POST_TYPES,
+            "taxonomies_partial": len(taxonomies) > MAX_TAXONOMIES,
+            "content_items": "not_read",
+            "runtime_errors": "not_available",
+        },
         "truncated": bool(len(plugins) > MAX_PLUGINS or len(post_types) > MAX_POST_TYPES
                           or len(taxonomies) > MAX_TAXONOMIES),
     }

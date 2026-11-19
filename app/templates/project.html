@@ -170,6 +170,28 @@
             <div><b>{{ fc.elementor_document_count }}</b><span>Elementor dokumenty</span></div>
           </div>
           <p><strong>{{ fc.site_name }}</strong> · {{ fc.site_url }} · Fresh Core {{ fc.plugin_version }}</p>
+          {% if core_state.audit %}
+          {% set audit = core_state.audit %}
+          <div class="karel-connector-truth">
+            <strong>Kontrola změn: {{ {'baseline':'První ověřený stav', 'unchanged':'Bez zjištěných strukturálních změn', 'changed':'Nalezené strukturální změny', 'partial':'Částečné porovnání'}.get(audit.status, 'Nepotvrzeno') }}</strong>
+            <p>Poslední kontrola: {{ audit.current_at }}{% if audit.previous_at %} · předchozí stav: {{ audit.previous_at }}{% endif %}</p>
+            <p>{{ audit.change_count }} rozdílů. Nejde o automatický test funkčnosti WordPressu ani jeho pluginů.</p>
+            {% if audit.changes %}
+            <details class="fresh-detail">
+              <summary>Ukázat konkrétní změny</summary>
+              <div class="fresh-detail-body">
+                {% for change in audit.changes %}
+                <p><b>{{ change.area }} / {{ change.name }}</b>: {{ change.before }} → {{ change.after }} {% if change.severity == 'warning' %}(vyžaduje kontrolu){% endif %}</p>
+                {% endfor %}
+              </div>
+            </details>
+            {% endif %}
+            {% if audit.limitations %}
+            <details class="fresh-detail"><summary>Co Karel z těchto dat nemůže ověřit</summary>
+            <div class="fresh-detail-body">{% for limit in audit.limitations %}<p>{{ limit }}</p>{% endfor %}</div></details>
+            {% endif %}
+          </div>
+          {% endif %}
           <details class="fresh-detail">
             <summary>Co Karel skutečně načetl?</summary>
             <div class="fresh-detail-body">
