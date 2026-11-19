@@ -7,7 +7,10 @@
       <h1>Moje projekty</h1>
       <p>Co je rozpracované, co čeká na rozhodnutí a jaký je další krok.</p>
     </div>
-    <button class="btn primary" type="button" onclick="toggle('new-project')">+ Nový projekt</button>
+    <div class="karel-portfolio-heading-actions">
+      {% if can_import_portfolio %}<a class="btn secondary" href="/github/import">Připojit GitHub</a>{% endif %}
+      <button class="btn primary" type="button" onclick="toggle('new-project')">+ Nový projekt</button>
+    </div>
   </header>
 
   <div id="new-project" class="drawer {% if request.query_params.get('new') %}open{% endif %}">
