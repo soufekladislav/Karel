@@ -11,9 +11,10 @@
           <h1>GitHub</h1>
           <p>Zjistíme, co už v projektu existuje. Ty rozhoduješ, co se má změnit. Issues, Pull Requesty a kód zůstávají v GitHubu.</p>
         </div>
-        {% if can_import_portfolio %}
-        <div class="view-head-actions"><a class="btn secondary" href="/github/import">Importovat projekty</a></div>
-        {% endif %}
+        <div class="view-head-actions">
+          {% if can_edit %}<a class="btn secondary" href="/projects/{{ project.id }}?view=manage">Spravovat projekt</a>{% endif %}
+          {% if can_import_portfolio %}<a class="btn secondary" href="/github/import">Importovat projekty</a>{% endif %}
+        </div>
       </header>
 
       {% if notice %}<div class="project-alert ok" role="status">{{ notice }}</div>{% endif %}
