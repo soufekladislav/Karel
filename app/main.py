@@ -656,7 +656,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
-    safe_views = {'chat','docs','development','tasks','github','settings','testing','releases','outputs','history','files','components'}
+    safe_views = {'chat','docs','development','tasks','github','website','settings','testing','releases','outputs','history','files','components'}
     if return_view not in safe_views:
         return_view = 'chat'
     destination = (f'/projects/{p.id}/github?chat_id={c.id}' if return_view == 'github'
