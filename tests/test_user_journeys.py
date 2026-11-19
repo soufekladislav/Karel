@@ -33,7 +33,7 @@ class JourneyPresentationTests(unittest.TestCase):
             has_site_url=True)
         self.assertEqual(journey['name'], 'Můj WordPress web')
         self.assertEqual(journey['steps'][1]['href'], FRESH_CORE_PRODUCT_URL)
-        self.assertEqual(journey['steps'][2]['status'], 'planned')
+        self.assertEqual(journey['steps'][2]['status'], 'next')
         self.assertEqual(journey['steps'][3]['status'], 'planned')
         self.assertNotIn('připojeno', journey['steps'][1]['body'].lower())
         self.assertIn('neověřili', journey['steps'][0]['body'])
