@@ -635,3 +635,12 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
  .karel-project-settings-shortcut .btn{width:100%}
  .karel-danger-disclosure .btn.danger{width:100%}
 }
+
+/* Existing Fresh Core installation is the normal path for returning users. */
+.karel-freshcore-onboard-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 10px}
+.karel-freshcore-onboard-actions .btn{max-width:100%}
+#fresh-core-pripojeni{scroll-margin-top:85px}
+@media(max-width:760px){
+  .karel-freshcore-onboard-actions{flex-direction:column;align-items:stretch}
+  .karel-freshcore-onboard-actions .btn{width:100%;text-align:center}
+}
