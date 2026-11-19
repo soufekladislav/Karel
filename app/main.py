@@ -1450,10 +1450,14 @@ def library_download(request:Request,item_id:int,db:Session=Depends(get_db)):
 def library_delete(request:Request,item_id:int,db:Session=Depends(get_db)):
     u=require_user(request,db); item=db.get(LibraryItem,item_id)
     if not item or item.owner_id!=u.id: raise HTTPException(404)
-    if item.stored_name:
-        try: absolute_library_path(item.stored_name).unlink(missing_ok=True)
-        except Exception: pass
-    db.delete(item); db.commit(); return RedirectResponse('/library',303)
+    stored_name=item.stored_name
+    db.delete(item)
+    db.commit()
+    # Do not destroy the backing file before the DB deletion was committed.
+    if stored_name:
+        try: absolute_library_path(stored_name).unlink(missing_ok=True)
+        except (OSError, ValueError): pass
+    return RedirectResponse('/library',303)
 
 @app.post('/projects/{project_id}/manifest')
 def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Session=Depends(get_db)):
