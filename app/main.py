@@ -47,6 +47,7 @@ from .services.attachment_reader import attachments_context
 from .services import fresh_key
 from .services.github_connector import GitHubReader, GitHubSyncError, validate_repository
 from .services.github_snapshot_store import upsert_snapshot
+from .services.github_snapshot_codec import decode_snapshot, GitHubSnapshotCodecError
 from .services.github_bulk_import import discover_repositories, prepare_import_plan, apply_import_plan
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .bootstrap import initialize_app, bootstrap_state
@@ -1506,7 +1507,7 @@ def github_project_page(request: Request, project_id: int, chat_id: int | None =
     p = get_project_or_404(db, u, project_id)
     link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
     try:
-        snap = json.loads(link.snapshot_json) if link and link.snapshot_json else {}
+        snap = decode_snapshot(link.snapshot_json) if link and link.snapshot_json else {}
     except (TypeError, ValueError):
         snap = {}
     task_counts = {status: db.scalar(select(func.count(Task.id)).where(
@@ -1576,7 +1577,12 @@ def github_project_sync(request: Request, project_id: int,
         return RedirectResponse(
             '/projects/' + str(p.id) + '/github?error=' + quote(str(exc)[:300]), 303
         )
-    upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
+    try:
+        upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
+    except GitHubSnapshotCodecError as exc:
+        db.rollback()
+        return RedirectResponse('/projects/' + str(p.id) +
+                                '/github?error=' + quote(str(exc)[:250]), 303)
     return RedirectResponse('/projects/' + str(p.id) +
                             '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
 
