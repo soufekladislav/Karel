@@ -44,7 +44,10 @@
         {% elif github_status.kind == 'unlinked' %}
         <div class="karel-github-next"><b>Jak pokračovat</b><p>Repozitář zatím není přiřazen. Připojíme ho, aniž bychom změnili původní Issues a PR.</p></div>
         {% elif github_status.kind == 'pending' %}
-        <div class="karel-github-next"><b>Jak pokračovat</b><p>Vazbu už máme. Pro konkrétní počty Issues a PR potřebujeme první úspěšnou synchronizaci.</p></div>
+        <div class="karel-github-next"><b>Jak pokračovat</b>
+          <p>{% if link and link.last_synced_at %}Předchozí data nejsou čitelná. Aktualizuj Karla a znovu klikni „Načíst aktuální stav“. Není potřeba repozitář odpojovat ani zakládat nový projekt.{% else %}Vazbu už máme. Spusť první načtení Issues, Pull Requestů a CI.{% endif %}</p>
+          {% if link %}<p><a class="karel-text-link" href="https://github.com/{{ link.repository_full_name }}" target="_blank" rel="noopener noreferrer">Otevřít původní repozitář na GitHubu →</a></p>{% endif %}
+        </div>
         {% elif github_status.kind == 'error' %}
         <div class="karel-github-next"><b>Jak pokračovat</b>
           <p>Poslední načtení selhalo. Zobrazené údaje mohou pocházet ze staršího snímku.</p></div>
@@ -124,7 +127,7 @@
         </details>
       </section>
       {% elif github_status.kind == 'pending' %}
-      <div class="karel-empty-state"><h3>Čekáme na první snímek repozitáře</h3><p>Po úspěšném čtení zde budou ověřené odkazy na Issues, PR a výsledky CI.</p></div>
+      <div class="karel-empty-state"><h3>{{ 'Načtený snímek se musí opravit' if link and link.last_synced_at else 'Čekáme na první snímek repozitáře' }}</h3><p>{{ 'Znovu spusť načtení. Neměň název repozitáře ani projekt, data v GitHubu jsou zachovaná.' if link and link.last_synced_at else 'Po úspěšném čtení zde budou ověřené odkazy na Issues, PR a výsledky CI.' }}</p></div>
       {% endif %}
     </div>
   </section>
