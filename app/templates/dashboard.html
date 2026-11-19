@@ -147,6 +147,9 @@
         <div class="karel-project-card-footer">
           <a class="btn secondary small" href="/projects/{{ p.id }}?view=development">Přehled projektu</a>
           <a class="karel-text-link" href="/projects/{{ p.id }}?view=chat">Chat s Karlem</a>
+          {% if item.can_edit %}
+          <a class="karel-text-link karel-manage-card-link" href="/projects/{{ p.id }}?view=manage">Spravovat projekt →</a>
+          {% endif %}
         </div>
       </article>
     {% else %}
@@ -160,25 +163,27 @@
     <p id="karel-search-empty" class="karel-search-empty" hidden>Žádný projekt neodpovídá hledání.</p>
   </section>
 
-  {% if archived_projects %}
-  <details class="karel-archive">
+  <details class="karel-archive" id="archiv-projektu">
     <summary>Archivované projekty ({{ archived_projects|length }})</summary>
     <div class="archive-list">
       {% for p in archived_projects %}
       <div class="archive-row">
-        <a href="/projects/{{ p.id }}?view=settings"><b>{{ p.name }}</b><span>{{ p.description or 'Bez popisu' }}</span></a>
+        <a href="/projects/{{ p.id }}?view=manage"><b>{{ p.name }}</b><span>{{ p.description or 'Bez popisu' }}</span></a>
+        {% if archived_management.get(p.id) %}
         <div class="row-actions">
           <form method="post" action="/projects/{{ p.id }}/archive">
             <input type="hidden" name="archived" value="0">
             <button type="submit" class="btn secondary small">Obnovit</button>
           </form>
-          <a class="btn danger small" href="/projects/{{ p.id }}?view=settings">Správa / smazání</a>
+          <a class="btn secondary small" href="/projects/{{ p.id }}?view=manage">Správa / smazání</a>
         </div>
+        {% endif %}
       </div>
+      {% else %}
+      <div class="archive-row karel-archive-empty">Archiv je prázdný. Projekt sem můžeš přesunout z jeho obrazovky „Správa projektu“.</div>
       {% endfor %}
     </div>
   </details>
-  {% endif %}
 </div>
 <script>
 function chooseKarelProject(mode){
