@@ -388,7 +388,7 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             fresh_requests=fresh_key.pending_link_requests(u)
         except Exception as exc:
             fresh_error=str(exc)
-    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error))
+    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,can_import_portfolio=is_superadmin(u)))
 
 @app.post('/projects')
 def create_project(request: Request, name: str=Form(...), description: str=Form(''), db: Session=Depends(get_db)):
@@ -1264,6 +1264,7 @@ def github_project_page(request: Request, project_id: int, chat_id: int | None =
         can_edit=can_edit_project(db, u, p),
         can_manage=bool(is_superadmin(u) and can_manage_project(db, u, p)),
         github_allowed=bool(settings.github_allowed_owners.strip()),
+        can_import_portfolio=is_superadmin(u),
         notice=request.query_params.get('notice', '')[:300],
         error=request.query_params.get('error', '')[:300],
     ))
