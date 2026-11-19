@@ -371,7 +371,8 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
         dashboard_projects.append({
             'project':p,'spec':spec,'counts':counts,
             'open':sum(counts.get(key,0) for key in ('todo','working','waiting_user','testing','failed')),
-            'goal_preview':overview,'github_status':gh,'github_link':link,
+            'goal_preview':overview,'has_goal':bool(spec.get('business_goal') or spec.get('purpose') or p.description),
+            'github_status':gh,'github_link':link,
             'next_step':next_step,
         })
     deadline_alerts.sort(key=lambda x:x['days'])
@@ -397,7 +398,7 @@ def create_project(request: Request, name: str=Form(...), description: str=Form(
     db.add(p); db.flush()
     c=Chat(project_id=p.id,title='Hlavní chat')
     db.add(c); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_created',detail='Projekt vytvořen.'))
-    db.commit(); return RedirectResponse(f'/projects/{p.id}',303)
+    db.commit(); return RedirectResponse(f'/projects/{p.id}?view=chat&guide=project-start',303)
 
 @app.get('/projects/{project_id}', response_class=HTMLResponse)
 def project_view(request: Request, project_id: int, chat_id: int|None=None, view: str='chat', db: Session=Depends(get_db)):
