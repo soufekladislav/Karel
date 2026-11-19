@@ -67,6 +67,9 @@
     <small>WordPress můžeš začít řešit jako projekt; přímé úpravy webu vyžadují připravované napojení Fresh Core.</small>
   </section>
   {% endif %}
+  {% if not github_configured and can_import_portfolio and projects %}
+  <p class="karel-portfolio-source-note">GitHub zatím není nakonfigurován. Neovlivňuje to práci s projekty. <a href="/github/import">Zobrazit propojení GitHubu →</a></p>
+  {% endif %}
   <section class="karel-portfolio-section" id="projekty">
     <div class="karel-portfolio-toolbar">
       <div><h2>Aktivní projekty</h2><p>Každý projekt má vlastní zadání, úkoly a stav zdrojů.</p></div>
@@ -85,7 +88,7 @@
             <h3><a href="/projects/{{ p.id }}?view=development">{{ p.name }}</a></h3>
             {% if item.spec.project_type %}<span class="karel-project-type">{{ item.spec.project_type }}</span>{% endif %}
           </div>
-          <span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>
+          {% if gh.kind != 'setup' %}<span class="karel-status-pill {{ gh.kind }}" title="{{ gh.detail }}">GitHub: {{ gh.label }}</span>{% endif %}
         </div>
         {% if item.has_goal %}
         <div class="karel-project-goal">
