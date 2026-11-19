@@ -137,6 +137,17 @@ class BulkImportDbTests(unittest.TestCase):
                                        'soufekladislav/Boban': self.original_id})
         self.assertEqual(self.db.scalar(select(func.count(GitHubRepoLink.id))), 0)
 
+    def test_ambiguous_mapping_without_target_rejects_whole_batch(self):
+        duplicate = Project(owner_id=self.user_id, name='Karel')
+        self.db.add(duplicate)
+        self.db.commit()
+        plan = prepare_import_plan(self.db, self.user_id, self.repos())
+        self.assertEqual(plan[0]['action'], 'review')
+        with self.assertRaisesRegex(ValueError, 'nejednoznačné'):
+            apply_import_plan(self.db, self.user_id, plan,
+                              ['soufekladislav/Boban', 'soufekladislav/Karel'])
+        self.assertEqual(self.db.scalar(select(func.count(GitHubRepoLink.id))), 0)
+
     def test_unknown_repository_is_rejected_before_writes(self):
         plan = prepare_import_plan(self.db, self.user_id, self.repos())
         with self.assertRaises(ValueError):
