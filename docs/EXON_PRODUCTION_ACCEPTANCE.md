@@ -1,12 +1,12 @@
 # Exon – bezpečnostní a produkční akceptace Karla
 
 Datum přípravy: 18. 11. 2026. Stav: **NEPROVEDENO NA SERVERU**.
-Repo: `soufekladislav/Karel`, integrační větev `develop/karel-platform`, draft PR #14.
+Repo: `soufekladislav/Karel`, aktuální vývoj probíhá přímo v `main`; PR #14 a #21 jsou sloučené. Tento dokument je stále provozní checklist, nikoliv potvrzené nasazení.
 
 ## Důležitá hranice odpovědnosti
 Tento dokument je provozní postup, nikoliv tvrzení o hotovém nasazení.
 Přístup do cPanel/SSH nebyl připojen; produkční URL nebylo možné z dostupného
-prostředí ověřit. **Nenasazovat integrační větev bez zálohy a stagingového testu.**
+prostředí ověřit. **Nenasazovat aktuální `main` bez zálohy a funkčního ověření v kontrolovaném prostředí.**
 Obsah `storage/` ve veřejném GitHub repozitáři byly podle vlastníka testy.
 Tím není povoleno mazání serverového `storage/`.
 
@@ -40,7 +40,7 @@ Pro zjištění práv a přímé veřejné dostupnosti mimo script ještě ově�
    web root; DB backup nesmí být v GitHubu. Ověřit dobu a velikost zálohy.
 2. V cPanelu vytvořit testovací Python app s **oddělenou DB, storage a `.env`**.
    Nenasazovat staging do stejné cesty jako produkci.
-3. Nasadit obsah `develop/karel-platform` pouze na staging. Nenahrazovat produkční
+3. Nasadit obsah ověřeného commitu z `main` pouze na staging (pokud se pro bezpečné ověření používá). Nenahrazovat produkční
    `.env` ani `storage/`. Ověřit Passenger virtualenv a `pip install -r requirements.txt`.
 4. Ve staging `.env` nastavit:
    - `KAREL_ENV=production`, vlastní HTTPS `APP_URL`, náhodný `APP_SECRET` délky

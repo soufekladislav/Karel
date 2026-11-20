@@ -1,16 +1,38 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktualizované produktové zadání (návrh ke schválení):**
-- [Produktová specifikace](docs/PRODUCT_SPECIFICATION.md) – cíle, role, požadavky R1–R10 a kritéria přijetí.
-- [Architektura a synchronizace](docs/ARCHITECTURE_AND_SYNCHRONIZATION.md) – GitHub jako zdroj pravdy, řízená fronta, kontext a schvalování.
-- [Realizační plán](docs/IMPLEMENTATION_PLAN.md) – etapy P0–P5 a testovací brány.
-- [AGENTS.md](AGENTS.md) – pravidla pro Codex/AI vývojáře.
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.34-fresh-core-read-audit`.**
+Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
 
-**Nový návrh P1 (samostatná větev před nasazením):** [Read-only GitHub import/sync](docs/OPERATIONAL_AUDIT_2026-11-18.md). Konfigurace GITHUB_ALLOWED_OWNERS a volitelně GITHUB_READ_TOKEN, nový režim jen pro superadmina. Sloučení P1 a nasazení vyžaduje CI, staging a schválení; dokumentované jako dosud neověřené v produkci.
+## Vývojový režim (rozhodnutí 20. 11. 2026)
+- **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.
+- Dřívější [PR #14](https://github.com/soufekladislav/Karel/pull/14) a [PR #21](https://github.com/soufekladislav/Karel/pull/21) jsou **sloučeny do `main`**. Žádné ruční skládání jejich souborů není potřeba.
+- **Sloučení v GitHubu není automatické nasazení na Exon.** Skutečná verze na serveru se musí ověřit zvlášť (manifest/health/logy).
 
-**Rozlišení stavů:** současný kód obsahuje lokální projektové funkce a Fresh AI Engine; nové GitHub synchronizace, plánování přes GitHub Projects a Codex fronta jsou **požadavky na vývoj**, nikoli dokončené funkce. Nasazenou produkci je nutné nejprve porovnat s GitHub verzí. Níže je zachován původní README pro historický alpha.24 import.
+## Současné schopnosti a omezení
+- GitHub: ruční READ snapshot / import a základní přehled Issues, PR a CI. Kompletní dokumentace/obsah souborů, Projects v2 a delta synchronizace jsou stále rozpracované (#20).
+- Fresh Core: READ-only `ping` → `snapshot`, šifrovaný projektový Access Key, rozšířená inventura WordPressu a porovnání dvou úspěšně načtených stavů. **Není** implementováno úplné čtení statického batch manifestu, runtime PHP/JS diagnostika ani WordPress zápisy (#19).
+- Karel je projektový manažer, nikoli automatický vývojář ani nástroj s neomezeným přístupem do WordPressu.
+
+## Nasazení aktuálního `main` na Exon
+1. Zálohovat serverovou DB, `storage/`, uživatelské soubory, `.env` a konfigurační klíče mimo webový root. **Nesmazat serverová data `storage/` při přechodu:** historické testovací soubory byly z GitHubu odstraněny a nyní jsou ignorovány.
+2. Nasadit kompletní ověřený commit z `main`, nikoli jednotlivé soubory; zachovat serverovou `.env`, nainstalovat nové Python dependencies do správného Passenger virtualenv.
+3. Ověřit kompatibilitu databáze, bezpečnostní konfiguraci a migraci podle [Exon provozní akceptace](docs/EXON_PRODUCTION_ACCEPTANCE.md); restartovat Passenger.
+4. Ve skutečné serverové konfiguraci nastavit bezpečný stálý `FRESH_CORE_VAULT_KEY` (nepřepisovat existující), `FRESH_CORE_ALLOWED_HOSTS` jen pro povolené weby. Klíče nikdy do chatu, URL ani GitHubu.
+5. Ověřit skutečnou verzi `alpha.34`, login, projekt, GitHub a čtecí spojení Fresh Core na kontrolovaném WordPressu včetně opakovaného refresh a změnové kontroly.
+
+**GitHub CI není důkaz produkční funkčnosti.** Na Exon zatím z tohoto repozitáře automaticky nic nenasazujeme.
+
+## Dokumentace
+- [Produktová specifikace](docs/PRODUCT_SPECIFICATION.md)
+- [Architektura a synchronizace](docs/ARCHITECTURE_AND_SYNCHRONIZATION.md)
+- [Realizační plán](docs/IMPLEMENTATION_PLAN.md)
+- [Fresh Core READ audit alpha.34](docs/FRESH_CORE_READ_AUDIT_2026-11-20.md)
+- [Pravidla pro Codex/AI](AGENTS.md)
 
 ---
+
+## Historie
+Níže uvedené změny starších verzí popisují jejich tehdejší stav. Není to aktuální seznam hotových funkcí.
 
 # Karel 2.0 – Clean Workspace (alpha.24)
 
