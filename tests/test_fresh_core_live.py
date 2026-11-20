@@ -220,9 +220,9 @@ class FreshCoreVaultAndProjectTests(unittest.TestCase):
         self.assertEqual(json.loads(history[0].content)["plugin_version"], "0.7.8")
         self.assertNotIn(READ_KEY,history[0].content)
 
-    def test_vault_misconfiguration_rejects_key(self):
-        with patch.object(settings,"fresh_core_vault_key",""):
-            with self.assertRaisesRegex(FreshCoreError,"VAULT_KEY"):
+    def test_invalid_configured_vault_never_silently_falls_back(self):
+        with patch.object(settings,"fresh_core_vault_key","invalid-configured-key"):
+            with self.assertRaisesRegex(FreshCoreError,"neplatný"):
                 seal_key(READ_KEY)
             state=connection_state(self.db,self.project_id)
             self.assertFalse(state["vault_ready"])

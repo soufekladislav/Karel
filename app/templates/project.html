@@ -277,6 +277,7 @@
              mimo webovou složku. Pokud jej hosting nepovolí, zobrazí konkrétní chybu a správce nastaví
              <code>FRESH_CORE_VAULT_KEY</code> v konfiguraci. Již existující klíče nepřepisujeme.</p>
           {% endif %}
+        {% endif %}
         {% if core_state.has_key and can_manage %}
         <details class="karel-connector-disconnect">
           <summary>Odpojit WordPress od Karla</summary>
