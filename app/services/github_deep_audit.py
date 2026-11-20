@@ -10,7 +10,7 @@ import base64
 import binascii
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 from sqlalchemy import select
 from ..config import settings
@@ -114,12 +114,19 @@ def scan_code(db, project: Project, user: User, *, reader_factory=GitHubReader):
         return "Repozitář tohoto projektu není bezpečně přiřazen. Před čtením kódu jej připoj na kartě GitHub.", "unlinked"
     link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == project.id))
     snapshot = decode_snapshot(link.snapshot_json) if link else {}
+    progress = _progress_row(db, project.id)
+    # First scan must not trust an old cached index from a previous deployment.
+    # An in-flight scan remains pinned to its original SHA for repeatability.
+    if (snapshot.get("repository") == repo and not progress and
+            (not link.last_synced_at or
+             datetime.utcnow() - link.last_synced_at > timedelta(minutes=5))):
+        snapshot = {}
     if snapshot.get("repository") != repo:
         # First request may initialize the source index itself. Do not ask for
         # details that already belong to the active Karel project.
         from .github_chat_audit import audit_for_chat
         _, mode = audit_for_chat(db, project, user, reader_factory=reader_factory)
-        if mode not in ("live", "cached", "ephemeral"):
+        if mode not in ("live", "cached"):
             return "GitHub index se nepodařilo ověřeně načíst; čtení kódu se nespustilo.", "needs_index"
         link = db.scalar(select(GitHubRepoLink).where(
             GitHubRepoLink.project_id == project.id))

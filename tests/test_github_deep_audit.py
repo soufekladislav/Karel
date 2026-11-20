@@ -84,6 +84,33 @@ class GitHubDeepTests(unittest.TestCase):
                                reader_factory=FakeReader)
         self.assertEqual(status,"indexed_end")
 
+    def test_first_source_scan_refreshes_old_github_index(self):
+        from datetime import datetime, timedelta
+        link = self.db.scalar(select(GitHubRepoLink).where(
+            GitHubRepoLink.project_id == self.project.id))
+        link.last_synced_at = datetime.utcnow() - timedelta(hours=2)
+        self.db.commit()
+        refreshed_sha = "c" * 40
+
+        def refresh(db, project, user, *, reader_factory):
+            new_snapshot = {
+                "repository": REPO,
+                "source_commit_sha": refreshed_sha,
+                "default_branch": "main",
+                "source_tree": ["app/main.py"],
+                "partial": {"tree": False},
+            }
+            upsert_snapshot(db, project.id, user.id, new_snapshot)
+            return "Nový ověřený GitHub index", "live"
+
+        with patch("app.services.github_chat_audit.audit_for_chat",
+                   side_effect=refresh) as fetch:
+            report, mode = scan_code(self.db, self.project, self.user,
+                                     reader_factory=FakeReader)
+        self.assertEqual(mode, "complete_index")
+        self.assertIn(refreshed_sha, report)
+        self.assertEqual(fetch.call_count, 1)
+
     def test_branch_compare_is_real_not_cached_markdown(self):
         with patch.object(settings,"github_allowed_owners",""), \
              patch.object(settings,"github_read_token",""):
