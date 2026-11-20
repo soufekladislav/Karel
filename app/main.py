@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 import mimetypes
 import os
 import json
@@ -57,7 +57,7 @@ from .services.github_bulk_import import discover_repositories, prepare_import_p
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .services.project_timeline import load_project_timeline
 from .services.github_schedule import is_schedule_request, read_live_karel_schedule, preview_schedule, ScheduleReadError
-from .services.project_schedule_replan import is_replan_request, prepare_replan, preview_replan, ReplanError
+from .services.project_schedule_replan import (is_replan_request, is_schedule_overview_request, preview_current_schedule, prepare_replan, preview_replan, ReplanError, _chat_target)
 from .bootstrap import initialize_app, bootstrap_state
 
 app = FastAPI(title='Karel 2.0')
@@ -125,7 +125,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.36.4-conversational-schedule-replan'
+APP_VERSION = '2.0.0-alpha.36.5-schedule-intent-verified'
 
 
 PROJECT_SPEC_KINDS = {
@@ -547,9 +547,21 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
             target=proposal_payload.get('target_test_date') or next((
                 item.get('due_date') for item in pending_items
                 if isinstance(item,dict) and item.get('id')=='M4'), '')
+            valid_proposal = True
+            if proposal_payload.get('source') == 'user_chat_replan':
+                try:
+                    requested_date = _chat_target(
+                        db, source_chat.id, source_message,
+                        today=(source_message.created_at.date()
+                               if source_message.created_at else date.today()),
+                    )
+                    valid_proposal = requested_date.isoformat() == target
+                except ReplanError:
+                    valid_proposal = False
             pending_schedule={
                 'chat_id': source_chat.id, 'target_date': target,
                 'items': pending_items, 'kind': proposal_payload.get('source'),
+                'valid': valid_proposal,
             }
         break
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
@@ -958,6 +970,31 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_batch_confirmed',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
             c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
             return RedirectResponse(destination+'&notice='+quote(action_result_text(batch))+anchor,303)
+
+    # Explaining a project's existing schedule is a read-only operation. Do
+    # not dismiss an outstanding approval merely because the user asks to
+    # inspect or confirm what Pipeline currently shows.
+    if not attachment_meta and is_schedule_overview_request(user_msg.content):
+        timeline = load_project_timeline(
+            db, p, is_admin=is_superadmin(u),
+            linked_repo='soufekladislav/Karel' if (
+                ' '.join((p.name or '').casefold().split()) in
+                ('karel', 'developer karel')) else None,
+        )
+        pending = pending_group(db, p.id, chat_id=c.id)
+        requested = ''
+        if pending:
+            pd = parse_pending(pending[-1])
+            if pd.get('type') == 'approve_project_schedule':
+                requested = str(
+                    (pd.get('payload') or {}).get('target_test_date') or '')
+        answer = preview_current_schedule(
+            timeline, project_id=p.id, pending_target=requested)
+        db.add(Message(chat_id=c.id, user_id=None, role='assistant',
+                       content=answer))
+        c.updated_at=datetime.utcnow()
+        db.commit()
+        return RedirectResponse(destination+anchor, 303)
 
     # A new non-confirmation message means the user continued the discussion instead of
     # approving the current proposal. Close that proposal and keep the decision in history.

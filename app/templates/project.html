@@ -316,6 +316,17 @@
         <a class="karel-text-link" href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}">Zkontrolovat a schválit v chatu</a>
       </div>
       {% endif %}
+      {% if project_timeline['items'] %}
+      <div class="project-alert" role="status">
+        <strong>Datumovaný harmonogram je v Pipeline.</strong>
+        {% if project_timeline.approved %}
+        Schválené milníky a jejich termíny jsou rozhodující; textový „Plán projektu“ níže je pouze popis postupu.
+        {% else %}
+        Zdejší textový plán není schválenou časovou osou. Aktuální M0–M6 jsou zatím pouze návrhem.
+        {% endif %}
+        <a class="karel-text-link" href="/projects/{{ project.id }}?view=development#project-timeline">Otevřít harmonogram a termíny</a>
+      </div>
+      {% endif %}
       <details class="fresh-detail" {% if project_spec.get('purpose') or project_spec.get('business_goal') %}open{% endif %}><summary>Hlavní zadání a cíle</summary><div class="fresh-detail-body">{% for key,label in [('purpose','Účel'),('business_goal','Obchodní cíl'),('functional_goal','Funkční zadání'),('project_scope','Rozsah'),('project_plan','Plán')] %}<div class="fresh-doc-row"><b>{{ label }}</b><p>{{ project_spec.get(key) or 'Zatím nezadáno.' }}</p></div>{% endfor %}</div></details>
       {% for m in document_memories %}<details class="fresh-detail"><summary>{{ m.title or m.kind }} <span>{{ m.kind }} · {{ m.created_at.strftime('%d.%m.%Y') if m.created_at else '' }}</span></summary><div class="fresh-detail-body preline">{{ m.content }}</div></details>{% endfor %}
       <div class="fresh-hint">Automatické vytěžení ZIPu a verzovaná technická dokumentace: <b>Ve vývoji</b>. Stávající dokumentace a projektová paměť jsou dostupné.</div>

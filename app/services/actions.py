@@ -200,6 +200,34 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
     if atype not in ALLOWED_ACTIONS:
         raise ValueError('Neznámý typ akce.')
 
+    if atype == 'approve_project_schedule' and payload.get('source') == 'user_chat_replan':
+        # An old alpha.36.4 proposal could misread "29 Jan -> 20 Dec"
+        # and must never remain approvable after an upgrade.
+        from .project_schedule_replan import _chat_target, ReplanError
+        source_msg = db.get(Message, data.get('source_message_id')) if (
+            data.get('source_message_id')) else None
+        if not source_msg or source_msg.role != 'user':
+            raise ValueError('Návrh nemá ověřenou původní uživatelskou zprávu.')
+        from ..models import Chat
+        source_chat = db.get(Chat, source_msg.chat_id)
+        if not source_chat or source_chat.project_id != project.id:
+            raise ValueError('Návrh termínů nepatří do tohoto projektu.')
+        try:
+            from datetime import date
+            reference_today = (
+                source_msg.created_at.date() if source_msg.created_at
+                else date.today())
+            intended = _chat_target(
+                db, source_chat.id, source_msg, today=reference_today)
+        except ReplanError as exc:
+            raise ValueError(
+                'Z původní domluvy nelze bezpečně určit termín. '
+                'Připrav prosím nový návrh.') from exc
+        if str(payload.get('target_test_date') or '') != intended.isoformat():
+            raise ValueError(
+                'Návrh obsahuje jiné datum, než bylo skutečně požadováno. '
+                'Nelze jej schválit. Připrav opravený návrh harmonogramu.')
+
     _set_state(row, data, 'confirmed', confirmed_at=datetime.utcnow().isoformat(), confirmed_by=user_id)
     db.flush()
     _set_state(row, parse_pending(row), 'executing', executing_at=datetime.utcnow().isoformat())

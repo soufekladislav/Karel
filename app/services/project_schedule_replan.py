@@ -21,49 +21,162 @@ DATE_REQUEST = re.compile(
 )
 
 def is_replan_request(message: str) -> bool:
+    """Project planning intent; never confuse a GitHub Actions CI pipeline."""
     q = (message or "").casefold()
     subject = any(x in q for x in (
-        "harmonogram", "časov", "casov", "termín", "termin", "milník", "milnik",
-        "testovací verz", "testovaci verz", "do 20.12",
+        "harmonogram", "časov", "casov", "termín", "termin",
+        "milník", "milnik", "testovací verz", "testovaci verz",
+        "projekt v pipeline", "v pipeline", "plán projektu",
+        "dokončení karla", "dokončení projektu", "dokonceni karla",
     ))
     intent = any(x in q for x in (
         "probr", "nastav", "zaprac", "aktualiz", "změn", "zmen",
         "posu", "přeplán", "preplan", "chtěl", "chtel", "chci",
         "dokonč", "dokonc", "dotáhl", "dotahl", "zkrát", "zkrat",
-        "není", "neni", "uprav",
+        "není", "neni", "uprav", "oprav", "rozvrhn", "potvr",
+        "nový", "novy", "nově", "nove", "stanov",
     ))
     return subject and intent
 
-def _request_date(message: str, *, today: date) -> date | None:
-    # A free-standing date is too ambiguous: only accept a target after
-    # a deadline/time-to-completion expression, never a date in an unrelated
-    # imported README or issue number.
-    text = (message or "").casefold()
-    match = DATE_REQUEST.search(text)
-    if not match:
-        return None
-    prefix = text[max(0, match.start() - 100): match.start()]
-    if not any(x in prefix for x in (
-        "do ", "k ", "nejpozději ", "ideálně ", "idealne ",
-        "termín ", "termin ", "testovací ", "testovaci ",
-    )):
-        return None
+# The previous implementation accepted the FIRST date matching "do", which
+# silently confused the old value with the newly requested deadline:
+# "Máme nastaveno do 29.1., chci opravit do 20.12.2026".
+# Compare the local language surrounding *every* date, instead.
+_TARGET_VERB = re.compile(
+    r"\b(?:chci|chtěl\w*|chtel\w*|ideálně|idealne|nejpozději|"
+    r"nově|nove|cílově|cilove|oprav\w*|uprav\w*|změn\w*|zmen\w*|"
+    r"posu\w*|přesu\w*|presu\w*|přeplán\w*|preplan\w*|"
+    r"rozvrhn\w*|dokonč\w*|dokonc\w*|dotáhn\w*|dotahn\w*|"
+    r"nastav\w*|potřeb\w*|potreb\w*)\b"
+)
+_OLD_VALUE = re.compile(
+    r"\b(?:máme|mame|původn\w*|puvodn\w*|dosud|nyní|nyni|"
+    r"současn\w*|soucasn\w*|teď|ted|nastaven\w*|bylo|"
+    r"aktuáln\w*|aktualn\w*|místo|misto)\b"
+)
+_DATE_PREFIX = re.compile(r"(?:\bdo|\bna|\bk)\s*$")
+_DISJUNCTION = re.compile(r"\b(?:nebo|anebo|či)\b")
+
+
+def is_schedule_overview_request(message: str) -> bool:
+    """Answer general "show/confirm the Pipeline" questions from real DB.
+
+    An explicit proposed date belongs to the replanning path instead.
+    """
+    q = (message or "").casefold()
+    if DATE_REQUEST.search(q):
+        return False
+    topic = any(x in q for x in (
+        "v pipeline", "projekt v pipeline", "harmonogram",
+        "termíny v pipeline", "terminy v pipeline",
+    ))
+    request = any(x in q for x in (
+        "potvrdit", "potvrd", "ukaž", "ukaz", "zobraz", "jaké",
+        "jake", "můžeš", "muzes", "uprav", "probrat",
+    ))
+    return topic and request and not any(
+        x in q for x in ("zapracuj", "zapiš", "zapis", "ulož", "uloz",
+                        "posuň", "posun", "změň na", "zmen na"))
+
+
+def preview_current_schedule(view: dict, *, project_id: int,
+                             pending_target: str = "") -> str:
+    """Compact answer backed by Pipeline data, not old Project Map prose."""
+    if not view.get("items"):
+        return (
+            "V Pipeline tohoto projektu zatím není datumovaný harmonogram. "
+            "Vytvořme návrh s konkrétními termíny a po schválení jej uložme.")
+    title = ("Schválený harmonogram" if view.get("approved")
+             else "Předběžný, dosud neschválený harmonogram")
+    lines = [
+        "## " + title + " v Pipeline",
+        "Toto jsou skutečně zobrazované milníky. "
+        "Textový plán v Projektové mapě není autoritou pro datumy.",
+        "", "| Milník | Termín |", "|---|---|",
+    ]
+    for item in view["items"]:
+        lines.append("| " + item["id"] + " – " + item["title"] +
+                     " | " + item["due_date"] + " |")
+    if pending_target:
+        lines.extend([
+            "", "**Čeká návrh nového termínu " + pending_target +
+            " na schválení.** Dokud ho nepotvrdíš, Pipeline se nemění.",
+        ])
+    lines.extend([
+        "", "Otevři /projects/" + str(project_id) +
+        "?view=development#project-timeline.",
+        "Chceš-li změnu, napiš například: "
+        "**Nový termín funkční testovací verze do 20.12.2026.** "
+        "Karel ukáže rozdíl a vyžádá si schválení.",
+        "GitHub Issues/Projects se zatím automaticky nepřepisují.",
+    ])
+    return "\n".join(lines)
+
+
+def _resolve_date(match: re.Match, today: date) -> date:
     day, month = int(match.group(1)), int(match.group(2))
-    year_part = match.group(3)
-    if year_part:
-        yr = int(year_part)
-        yr = yr + 2000 if yr < 100 else yr
+    part = match.group(3)
+    if part:
+        year = int(part)
+        year = year + 2000 if year < 100 else year
     else:
-        yr = today.year
-        try:
-            if date(yr, month, day) < today:
-                yr += 1
-        except ValueError as exc:
-            raise ReplanError("Uvedené datum není platné.") from exc
+        year = today.year
     try:
-        return date(yr, month, day)
+        proposed = date(year, month, day)
     except ValueError as exc:
-        raise ReplanError("Uvedené datum není platné.") from exc
+        raise ReplanError("V požadavku je neplatné datum.") from exc
+    if not part and proposed < today:
+        try:
+            proposed = date(year + 1, month, day)
+        except ValueError as exc:
+            raise ReplanError("Neplatný termín v následujícím roce.") from exc
+    return proposed
+
+
+def _request_date(message: str, *, today: date) -> date | None:
+    """Return the EXPLICITLY requested new deadline, never the previous one.
+
+    With multiple dates, a distinct change verb must be closest to the chosen
+    date; ambiguous alternatives require clarification instead of a proposal.
+    """
+    text = (message or "").casefold()
+    matches = list(DATE_REQUEST.finditer(text))
+    if not matches:
+        return None
+    # "do 20.12. nebo do 27.12." is a choice, not an approval.
+    if len(matches) > 1 and _DISJUNCTION.search(text[matches[0].end():]):
+        raise ReplanError(
+            "Vidím více alternativních termínů. Který jediný je nový cíl?")
+    candidates = []
+    previous_end = 0
+    for match in matches:
+        # Date-to-date clauses are separate. Only local context carries roles.
+        left = text[max(previous_end, match.start()-120):match.start()]
+        has_preposition = bool(_DATE_PREFIX.search(left))
+        target_mentions = list(_TARGET_VERB.finditer(left))
+        old_mentions = list(_OLD_VALUE.finditer(left))
+        target_position = target_mentions[-1].start() if target_mentions else -1
+        old_position = old_mentions[-1].start() if old_mentions else -1
+        # If the nearest assertion describes a previous/current deadline,
+        # that date is not a new target, even if the message discusses change.
+        if has_preposition and target_position > old_position:
+            candidates.append((match, target_position))
+        elif len(matches) == 1 and not old_mentions and target_mentions:
+            # User may write "Chtěl bych Karla dokončit 20.12." without "do".
+            candidates.append((match, target_position))
+        previous_end = match.end()
+    if not candidates:
+        if len(matches) >= 2:
+            raise ReplanError(
+                "Ze zmíněných datumů neumím bezpečně poznat nový termín. "
+                "Napiš například: Nový cíl testovací verze je 20.12.2026.")
+        return None
+    if len(candidates) != 1:
+        raise ReplanError(
+            "V požadavku je více možných nových termínů. "
+            "Potvrď jeden konkrétní nový termín.")
+    return _resolve_date(candidates[0][0], today)
+
 
 def _chat_target(db, chat_id: int, message: Message, *, today: date) -> date:
     direct = _request_date(message.content, today=today)

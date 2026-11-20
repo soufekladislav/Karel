@@ -8,7 +8,9 @@
         <strong>Čeká na tvé schválení: nový harmonogram</strong>
         <p>Navržený termín testovací verze: <b>{{ pending_schedule.target_date }}</b>. Dosud zobrazený plán se do schválení nezměnil.</p>
       </div>
-      {% if can_edit %}
+      {% if pending_schedule.valid is defined and not pending_schedule.valid %}
+      <strong class="is-late">Návrh je chybný: datum neodpovídá původnímu požadavku. Vytvoř nový návrh v chatu.</strong>
+      {% elif can_edit %}
       <form method="post" action="/projects/{{ project.id }}/chat/{{ pending_schedule.chat_id }}/actions/approve">
         <button class="btn primary small" type="submit">Schválit nové termíny</button>
       </form>
