@@ -98,6 +98,46 @@ class ProjectTimelineTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertFalse(result["approved"])
 
+    def test_actual_jinja_pipeline_fragment_renders_draft_and_approved(self):
+        # This is the regression that the previous static assertion missed.
+        # Jinja resolves a dict's .items as the method, not the "items" key.
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+        template_dir = Path(__file__).resolve().parents[1] / "app" / "templates"
+        template = Environment(
+            loader=FileSystemLoader(str(template_dir)),
+            autoescape=select_autoescape(["html"]),
+        ).get_template("_project_timeline.html")
+        draft = load_project_timeline(
+            self.db, self.project, is_admin=True,
+            linked_repo="soufekladislav/Karel")
+        html = template.render(project=self.project, project_timeline=draft)
+        self.assertIn("Harmonogram projektu", html)
+        self.assertIn("Návrh – čeká na schválení", html)
+        self.assertIn("M0", html)
+        self.assertIn("29.01.2027", html)
+        self.assertIn("Issue #20", html)
+        # A different project can have an empty timeline without an exception.
+        empty = load_project_timeline(self.db, self.other, is_admin=True)
+        empty_html = template.render(project=self.other, project_timeline=empty)
+        self.assertIn("Časovou osu teprve připravíme", empty_html)
+        # Approved plans must render too, not just the local Karel draft.
+        self.db.add(ProjectMemory(
+            project_id=self.other.id, kind="project_schedule",
+            title="Schválený harmonogram", verified=True,
+            content=json.dumps({"milestones": [{
+                "id": "M1", "title": "Akceptace uživatelem",
+                "start_date": "2026-11-23", "due_date": "2026-11-25",
+                "acceptance": "Funkční stránka Pipeline", "dependencies": "",
+                "issue_numbers": [], "status": "planned",
+            }]}),
+        ))
+        self.db.commit()
+        approved = load_project_timeline(self.db, self.other, is_admin=True)
+        approved_html = template.render(
+            project=self.other, project_timeline=approved)
+        self.assertIn("Schválený plán", approved_html)
+        self.assertIn("Akceptace uživatelem", approved_html)
+
     def test_frontend_contains_timeline_in_pipeline_not_a_new_page(self):
         template = (Path(__file__).resolve().parents[1] /
                     "app" / "templates" / "project.html").read_text(encoding="utf-8")
@@ -108,6 +148,8 @@ class ProjectTimelineTests(unittest.TestCase):
         self.assertIn("Harmonogram projektu", fragment)
         self.assertIn("Návrh – čeká na schválení", fragment)
         self.assertIn("item.date_label", fragment)
+        self.assertIn("project_timeline['items']", fragment)
+        self.assertNotIn("project_timeline.items", fragment)
         self.assertIn("project_timeline.approved", fragment)
 
 

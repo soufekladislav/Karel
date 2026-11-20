@@ -15,13 +15,13 @@
     </div>
     <a class="btn secondary small" href="/projects/{{ project.id }}?view=chat">Probrat termíny s Karlem</a>
   </div>
-  {% if project_timeline.items %}
+  {% if project_timeline['items'] %}
     <div class="karel-timeline-meta" aria-label="Souhrn harmonogramu">
       <span class="karel-timeline-state {% if project_timeline.approved %}approved{% endif %}">
         {{ 'Schválený plán' if project_timeline.approved else 'Návrh – čeká na schválení' }}
       </span>
       <span>Období {{ project_timeline.start_date }} – {{ project_timeline.end_date }}</span>
-      <span>{{ project_timeline.complete }}/{{ project_timeline.items|length }} milníků dokončeno</span>
+      <span>{{ project_timeline.complete }}/{{ project_timeline['items']|length }} milníků dokončeno</span>
       {% if project_timeline.approved and project_timeline.overdue %}
         <strong class="is-late">{{ project_timeline.overdue }} po termínu</strong>
       {% endif %}
@@ -30,7 +30,7 @@
       <div class="karel-timeline-cols karel-timeline-labels">
         <span>Milník a přejímka</span><span>Časová osa (od {{ project_timeline.start_date }} do {{ project_timeline.end_date }})</span><span>Začátek / termín</span>
       </div>
-      {% for item in project_timeline.items %}
+      {% for item in project_timeline['items'] %}
       <div class="karel-timeline-cols karel-timeline-row">
         <div class="karel-timeline-descr">
           <strong>{{ item.id }} · {{ item.title }}</strong>
