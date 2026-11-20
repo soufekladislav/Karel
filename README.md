@@ -9,6 +9,8 @@ Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav
 
 **První GitHub funkční celek (20. 11. 2026):** Karlův čtecí snapshot nyní obsahuje i ověřené výňatky vybraných projektových dokumentů. Starší projekty musí provést aktualizaci GitHub snímku, jinak jejich cache ještě neobsahuje texty. Chybějící dokumenty se nesmějí prezentovat jako ověřené. Tato dávka **nepřidává žádné GitHub write, merge ani close operace**.
 
+**Projektový harmonogram:** [sedm etap + datumované funkční milníky 23. 11. 2026–29. 1. 2027](docs/PROJECT_SCHEDULE.md). Dokument je aktuálně **návrh baseline v0.1**, nikoli schválený plán v databázi Karla. Karel jej po GitHub synchronizaci prioritně načítá jako podklad; do plánovacích karet/ProjectStage se data smějí uložit až po schválení. Samotný engine pro deterministické plánování pracovních dnů a přesuny závislostí ještě není implementovaný.
+
 ## Vývojový režim (rozhodnutí 20. 11. 2026)
 - **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.
 - Dřívější [PR #14](https://github.com/soufekladislav/Karel/pull/14) a [PR #21](https://github.com/soufekladislav/Karel/pull/21) jsou **sloučeny do `main`**. Žádné ruční skládání jejich souborů není potřeba.

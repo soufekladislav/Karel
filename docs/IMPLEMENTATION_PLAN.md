@@ -1,5 +1,7 @@
 # Karel – realizační plán po malých dávkách
 
+**Aktuální návrh harmonogramu a testovatelných milníků:** [PROJECT_SCHEDULE.md](PROJECT_SCHEDULE.md), baseline v0.1 k 20. 11. 2026, datumy 23. 11. 2026–29. 1. 2027. Sedm etap v app/services/workflow.py zůstává nadřazeným procesem, M0–M6 jsou funkční výstupy s konkrétními datumy. Plán čeká na odsouhlasení výchozího termínu a kapacity.
+
 Toto je plán požadavků, ne potvrzení hotových funkcí. Nedělat vše v jednom Codex zadání; každá fáze končí testem.
 
 ## P0 – Sjednotit zdroj pravdy a audit [nejvyšší priorita]

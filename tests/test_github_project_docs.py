@@ -98,6 +98,12 @@ class GitHubDocumentationTests(unittest.TestCase):
         self.assertEqual(snapshot["documentation_excerpts"], [])
         self.assertNotIn("Brand Kit", prompt_summary(snapshot))
 
+    def test_project_schedule_is_prioritized_as_repository_context(self):
+        files = ["AGENTS.md", "docs/PRODUCT_SPECIFICATION.md",
+                 "docs/PARITY.md", "docs/PROJECT_SCHEDULE.md", "README.md"]
+        self.assertEqual(choose_project_docs(files),
+                         ["README.md", "docs/PROJECT_SCHEDULE.md", "docs/PARITY.md"])
+
     def test_document_choice_rejects_arbitrary_paths(self):
         choices = choose_project_docs([
             "docs/../../.env", ".env", "docs/PARITY.md",

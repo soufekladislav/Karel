@@ -24,6 +24,7 @@ MAX_DOC_BYTES = 48 * 1024
 MAX_DOC_CONTEXT = 5000
 DOC_PRIORITY = (
     "README.md",
+    "docs/PROJECT_SCHEDULE.md",
     "docs/PARITY.md",
     "docs/PRODUCT_SPECIFICATION.md",
     "docs/README.md",
