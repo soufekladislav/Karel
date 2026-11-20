@@ -369,6 +369,8 @@
         {% if project_spec.get('project_deadline') %}<span>Cílový termín: {{ project_spec.get('project_deadline') }}</span>{% endif %}
       </div>
 
+      {% include '_project_timeline.html' %}
+
       {% if not project_has_activity and project_mode == 'general' %}
       <section class="karel-project-empty-start">
         <div class="eyebrow">PRVNÍ KROK</div>

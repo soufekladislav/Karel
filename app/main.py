@@ -55,6 +55,7 @@ from .services.github_snapshot_store import upsert_snapshot
 from .services.github_snapshot_codec import decode_snapshot, GitHubSnapshotCodecError
 from .services.github_bulk_import import discover_repositories, prepare_import_plan, apply_import_plan
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
+from .services.project_timeline import load_project_timeline
 from .bootstrap import initialize_app, bootstrap_state
 
 app = FastAPI(title='Karel 2.0')
@@ -122,7 +123,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.36-spec-draft-and-github-index'
+APP_VERSION = '2.0.0-alpha.36.1-pipeline-timeline'
 
 
 PROJECT_SPEC_KINDS = {
@@ -523,6 +524,10 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         has_site_url=bool(website_url),
         can_import=is_superadmin(u), fresh_connected=core_state['kind'] == 'synced',
     )
+    project_timeline=load_project_timeline(
+        db, p, is_admin=is_superadmin(u),
+        linked_repo=github_link.repository_full_name if github_link else None,
+    )
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
     project_has_activity = bool(
@@ -550,6 +555,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         github_status=github_status,github_link=github_link,project_focus=project_focus,
         project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
         project_mode=project_mode_name,project_journey=project_journey,
+        project_timeline=project_timeline,
         website_url=website_url,core_state=core_state,
         can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,

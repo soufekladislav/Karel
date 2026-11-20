@@ -1,0 +1,81 @@
+{# Milestones are deliverables, not seven governing stages. Only approved rows can
+   be considered contractual or overdue; read-only GitHub proposal is a draft. #}
+<section class="karel-timeline" id="project-timeline" aria-label="Projektový harmonogram">
+  <div class="karel-timeline-head">
+    <div>
+      <span class="eyebrow">ŘÍZENÍ TERMÍNŮ A MILNÍKŮ</span>
+      <h3>Harmonogram projektu</h3>
+      <p>{% if project_timeline.approved %}
+        Schválený plán projektu · termíny a jejich plnění.
+      {% elif project_timeline.source == 'checked_in_draft' %}
+        Návrh převzatý z dokumentace dodané s touto verzí aplikace. Není schválený a nemusí odpovídat posledním změnám GitHubu.
+      {% else %}
+        Tento projekt zatím nemá schválenou strojově čitelnou časovou osu.
+      {% endif %}</p>
+    </div>
+    <a class="btn secondary small" href="/projects/{{ project.id }}?view=chat">Probrat termíny s Karlem</a>
+  </div>
+  {% if project_timeline.items %}
+    <div class="karel-timeline-meta" aria-label="Souhrn harmonogramu">
+      <span class="karel-timeline-state {% if project_timeline.approved %}approved{% endif %}">
+        {{ 'Schválený plán' if project_timeline.approved else 'Návrh – čeká na schválení' }}
+      </span>
+      <span>Období {{ project_timeline.start_date }} – {{ project_timeline.end_date }}</span>
+      <span>{{ project_timeline.complete }}/{{ project_timeline.items|length }} milníků dokončeno</span>
+      {% if project_timeline.approved and project_timeline.overdue %}
+        <strong class="is-late">{{ project_timeline.overdue }} po termínu</strong>
+      {% endif %}
+    </div>
+    <div class="karel-timeline-scroll">
+      <div class="karel-timeline-cols karel-timeline-labels">
+        <span>Milník a přejímka</span><span>Časová osa (od {{ project_timeline.start_date }} do {{ project_timeline.end_date }})</span><span>Začátek / termín</span>
+      </div>
+      {% for item in project_timeline.items %}
+      <div class="karel-timeline-cols karel-timeline-row">
+        <div class="karel-timeline-descr">
+          <strong>{{ item.id }} · {{ item.title }}</strong>
+          <p>{{ item.acceptance }}</p>
+          {% if item.dependencies %}<small>Závisí na: {{ item.dependencies }}</small>{% endif %}
+          {% if item.issue_numbers %}<div class="karel-timeline-links">
+            {% for issue in item.issue_numbers %}
+              <a href="https://github.com/soufekladislav/Karel/issues/{{ issue }}" target="_blank" rel="noopener noreferrer">Issue #{{ issue }}</a>
+            {% endfor %}
+          </div>{% endif %}
+        </div>
+        <div class="karel-timeline-track" title="{{ item.start_label }} – {{ item.date_label }}">
+          <div class="karel-timeline-bar {{ item.view_status }}" style="left:{{ item.offset_pct }}%;width:{{ item.width_pct }}%"></div>
+        </div>
+        <div class="karel-timeline-dates">
+          <span>{{ item.start_label }}</span>
+          <strong>{{ item.date_label }}</strong>
+          {% if project_timeline.approved %}
+            <small class="{% if item.view_status=='late' %}is-late{% endif %}">
+              {% if item.view_status == 'completed' %}Schváleno
+              {% elif item.view_status == 'blocked' %}Blokováno
+              {% elif item.view_status == 'testing' %}V testování
+              {% elif item.view_status == 'late' %}Po termínu
+              {% elif item.view_status == 'soon' %}Blíží se termín
+              {% else %}Plánováno{% endif %}
+            </small>
+          {% else %}<small>Orientační termín</small>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="karel-timeline-disclaimer">
+      {% if not project_timeline.approved %}
+        Časová osa je návrh. Termíny zatím nevytvářejí závazné úkoly ani upozornění.
+        Zápis či změny termínů do GitHub Issues/Projects nejsou automaticky prováděné.
+      {% else %}
+        Stav milníku vychází z uloženého schváleného plánu. Bez ověřené synchronizace
+        GitHubu nepředpokládáme, že termíny Issues odpovídají nástěnce.
+      {% endif %}
+    </p>
+  {% else %}
+    <div class="karel-timeline-empty">
+      <strong>Časovou osu teprve připravíme.</strong>
+      <p>Karel má z uloženého zadání a GitHub podkladů navrhnout milníky, datumy,
+         závislosti a kontrolní termíny. Až schválený strukturovaný plán zde bude veden jako závazný.</p>
+    </div>
+  {% endif %}
+</section>
