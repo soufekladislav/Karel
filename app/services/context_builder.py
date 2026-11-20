@@ -163,6 +163,20 @@ def _current_project_context(db: Session, project: Project, query: str, query_te
             + _clip(core_snapshot.content or '', 8000)
         )
 
+    # Comparison is persisted separately from the current inventory. It
+    # records structural differences only, not runtime test success.
+    core_audit=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == project.id,
+        ProjectMemory.kind == 'fresh_core_last_diff',
+        ProjectMemory.verified == True,
+    ).order_by(ProjectMemory.id.desc()))
+    if core_audit:
+        sections.append(
+            'FRESH CORE – POROVNÁNÍ DVOU OVĚŘENÝCH STAVŮ (NIKOLI DŮKAZ FUNKČNOSTI). '
+            'Nepovažuj chybějící/částečná data za potvrzenou chybu.\\n' +
+            _clip(core_audit.content or '', 6000)
+        )
+
     # Manifest is a first-class source. If the user asks about it, include the full stored payload.
     manifest = db.scalar(
         select(ProjectMemory).where(
@@ -208,7 +222,8 @@ def _current_project_context(db: Session, project: Project, query: str, query_te
         select(ProjectMemory).where(
             ProjectMemory.project_id == project.id,
             ProjectMemory.verified == True,
-            ProjectMemory.kind.notin_(['manifest','fresh_core_snapshot','fresh_core_read_credential']),
+            ProjectMemory.kind.notin_(['manifest','fresh_core_snapshot','fresh_core_read_credential',
+                                       'fresh_core_last_diff','fresh_core_read_history']),
         ).order_by(ProjectMemory.id.desc()).limit(180)
     ).all()
     ranked_memories = sorted(memories, key=lambda m: (_score(query_terms, m.kind, m.title, m.content), m.id), reverse=True)

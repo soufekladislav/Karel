@@ -14,6 +14,11 @@ from .fresh_core_reader import (
     CREDENTIAL_KIND, SNAPSHOT_KIND, FreshCoreReader, FreshCoreError,
     seal_key, unseal_key, vault_ready,
 )
+from .fresh_core_audit import compare_snapshots
+
+AUDIT_KIND = "fresh_core_last_diff"
+HISTORY_KIND = "fresh_core_read_history"
+HISTORY_LIMIT = 10
 
 def _memory(db, project_id: int, kind: str):
     return db.scalar(select(ProjectMemory).where(
@@ -33,6 +38,15 @@ def connection_state(db, project_id: int) -> dict:
                 snapshot = {}
         except (ValueError, TypeError):
             snapshot = {}
+    audit_row = _memory(db, project_id, AUDIT_KIND)
+    audit = {}
+    if audit_row and audit_row.verified:
+        try:
+            audit = json.loads(audit_row.content)
+            if not isinstance(audit, dict) or audit.get("site_url") != snapshot.get("site_url"):
+                audit = {}
+        except (ValueError, TypeError):
+            audit = {}
     if not credential:
         status = "unlinked"
     elif snapshot:
@@ -49,6 +63,7 @@ def connection_state(db, project_id: int) -> dict:
         "has_key": bool(credential),
         "last_synced_at": snapshot.get("fetched_at"),
         "snapshot": snapshot,
+        "audit": audit,
         "vault_ready": vault_ready(),
         "hosts_ready": bool(str(getattr(settings, "fresh_core_allowed_hosts", "") or "").strip()),
     }
@@ -68,6 +83,33 @@ def _upsert(db, project_id: int, kind: str, title: str, value: str, *, verified:
 
 
 def _store_snapshot(db, project_id: int, actor_id: int, snapshot: dict):
+    previous = _memory(db, project_id, SNAPSHOT_KIND)
+    before = None
+    if previous and previous.verified:
+        try:
+            candidate = json.loads(previous.content)
+            if isinstance(candidate, dict) and candidate.get("schema") == "karel.fresh-core.readonly.v1":
+                before = candidate
+        except (ValueError, TypeError):
+            pass
+    audit = compare_snapshots(before, snapshot)
+    # Only a completed handshake reaches here. Preserve the last verified
+    # inventory on failed requests, and preserve the previous different state.
+    if before and audit["change_count"]:
+        db.add(ProjectMemory(project_id=project_id, kind=HISTORY_KIND,
+                             title="Fresh Core – předchozí ověřený stav",
+                             content=json.dumps(before, ensure_ascii=False),
+                             verified=True))
+        db.flush()
+        old_rows = db.scalars(select(ProjectMemory).where(
+            ProjectMemory.project_id == project_id,
+            ProjectMemory.kind == HISTORY_KIND,
+        ).order_by(ProjectMemory.id.desc()).offset(HISTORY_LIMIT)).all()
+        for row in old_rows:
+            db.delete(row)
+    _upsert(db, project_id, AUDIT_KIND,
+            "Fresh Core – změny proti předchozímu ověření",
+            json.dumps(audit, ensure_ascii=False), verified=True)
     _upsert(db, project_id, SNAPSHOT_KIND,
             "Fresh Core – časově označená bezpečná čtecí data",
             json.dumps(snapshot, ensure_ascii=False), verified=True)
@@ -108,7 +150,7 @@ def refresh_readonly(db, project_id: int, actor_id: int, site: str,
 
 def disconnect_readonly(db, project_id: int, actor_id: int) -> None:
     """Local revoke; users must still revoke the credential in WordPress."""
-    for kind in (CREDENTIAL_KIND, SNAPSHOT_KIND):
+    for kind in (CREDENTIAL_KIND, SNAPSHOT_KIND, AUDIT_KIND, HISTORY_KIND):
         for row in db.scalars(select(ProjectMemory).where(
                 ProjectMemory.project_id == project_id, ProjectMemory.kind == kind)).all():
             db.delete(row)

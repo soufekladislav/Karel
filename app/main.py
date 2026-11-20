@@ -117,7 +117,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.33-live-data-fixes'
+APP_VERSION = '2.0.0-alpha.34-fresh-core-read-audit'
 
 
 PROJECT_SPEC_KINDS = {
