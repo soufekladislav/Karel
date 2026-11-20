@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block pageclass %}project-page project-v2{% endblock %}
 {% block content %}
-<div class="project-app {% if view != 'chat' %}with-context-chat{% endif %}">
+<div class="project-app {% if view != 'chat' %}with-context-chat{% endif %}{% if view == 'development' %} pipeline-view{% endif %}">
   <aside class="project-sidebar" aria-label="Navigace projektu">{% include '_sidebar.html' %}</aside>
 
   <section class="project-content">

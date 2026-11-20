@@ -16,6 +16,23 @@ from ..models import ProjectMemory
 DRAFT_PATH = Path(__file__).resolve().parents[2] / "docs" / "PROJECT_SCHEDULE.md"
 KAREL_PROJECT_NAMES = frozenset(("karel", "developer karel"))
 MEMORY_KIND = "project_schedule"
+
+# This exact release baseline was reviewed against docs/PROJECT_SCHEDULE.md.
+# It is strictly a *draft fallback* when deploys omit docs/. This is NOT
+# remotely refreshed GitHub data and never silently becomes an approved plan.
+BUNDLED_KAREL_SCHEDULE = """## Konkrétní milníky a termíny
+
+| ID | Od | Do / akceptace | Hmatatelný výsledek | Závisí na | GitHub |
+| --- | --- | --- | --- | --- | --- |
+| **M0 – Audit a bezpečný základ** | 23. 11. | **25. 11. 2026** | Ověřená verze Exonu, GitHub, bezpečnost a blokace | Bez dalšího | [#4](https://github.com/soufekladislav/Karel/issues/4), [#5](https://github.com/soufekladislav/Karel/issues/5) |
+| **M1 – Časová osa přímo v Karlovi** | 26. 11. | **4. 12. 2026** | Ověřená a schvalovaná časová osa se závislostmi a historií | M0 | [#1](https://github.com/soufekladislav/Karel/issues/1), [#17](https://github.com/soufekladislav/Karel/issues/17) |
+| **M2 – Spolehlivé převzetí GitHubu** | 7. 12. | **11. 12. 2026** | Čtení kódu, Issues, PR, větví a testů včetně omezení zdrojů | M0, M1 | [#20](https://github.com/soufekladislav/Karel/issues/20), [#6](https://github.com/soufekladislav/Karel/issues/6) |
+| **M3 – GitHub manažer** | 14. 12. | **18. 12. 2026** | Schválené a ověřené úpravy Issues, bez neautorizovaného merge | M2 | [#9](https://github.com/soufekladislav/Karel/issues/9) |
+| **M4 – AI Engine a Codex – pilot** | 4. 1. 2027 | **15. 1. 2027** | Schválené Issue, Engine job, skutečné kódování a CI | M3 | [#10](https://github.com/soufekladislav/Karel/issues/10) |
+| **M5 – Testovací nasazení a přejímka** | 18. 1. | **22. 1. 2027** | Oddělené testování, protokol a rozhodnutí uživatele | M4 | [#10](https://github.com/soufekladislav/Karel/issues/10), [#4](https://github.com/soufekladislav/Karel/issues/4) |
+| **M6 – Produkční pilot Karla** | 25. 1. | **29. 1. 2027** | Schválení, záloha, řízené nasazení, health a rollback | M5 | [#4](https://github.com/soufekladislav/Karel/issues/4) |
+"""
+
 DOC_HEADING = "## Konkrétní milníky a termíny"
 MILESTONE_ID = re.compile(r"\b(M[0-9]+)\b")
 DATE = re.compile(r"(\d{1,2})\.\s*(\d{1,2})\.\s*(20\d\d)?")
@@ -163,13 +180,19 @@ def load_project_timeline(db, project, *, is_admin=False, linked_repo=None) -> d
             pass
     project_name = " ".join((project.name or "").casefold().split())
     if (is_admin and project_name in KAREL_PROJECT_NAMES and
-            linked_repo in (None, "", "soufekladislav/Karel") and
-            DRAFT_PATH.is_file()):
-        try:
-            rows = normalize_milestones(parse_checked_in_schedule(
-                DRAFT_PATH.read_text(encoding="utf-8")))
-        except OSError:
-            rows = []
+            linked_repo in (None, "", "soufekladislav/Karel")):
+        rows = []
+        if DRAFT_PATH.is_file():
+            try:
+                rows = normalize_milestones(parse_checked_in_schedule(
+                    DRAFT_PATH.read_text(encoding="utf-8")))
+            except OSError:
+                rows = []
         if rows:
             return timeline_view(rows, approved=False, source="checked_in_draft")
+        # Exon deployments may contain app/ but not docs/. Do not silently
+        # discard the project schedule just because ancillary docs were omitted.
+        rows = normalize_milestones(parse_checked_in_schedule(BUNDLED_KAREL_SCHEDULE))
+        if rows:
+            return timeline_view(rows, approved=False, source="bundled_draft")
     return timeline_view([], approved=False)

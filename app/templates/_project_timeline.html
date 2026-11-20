@@ -7,8 +7,8 @@
       <h3>Harmonogram projektu</h3>
       <p>{% if project_timeline.approved %}
         Schválený plán projektu · termíny a jejich plnění.
-      {% elif project_timeline.source == 'checked_in_draft' %}
-        Návrh převzatý z dokumentace dodané s touto verzí aplikace. Není schválený a nemusí odpovídat posledním změnám GitHubu.
+      {% elif project_timeline.source in ['checked_in_draft', 'bundled_draft'] %}
+        Výchozí návrh harmonogramu M0–M6 z dokumentace vydání Karla. Není schválený ani automaticky aktualizovaný z GitHubu.
       {% else %}
         Tento projekt zatím nemá schválenou strojově čitelnou časovou osu.
       {% endif %}</p>

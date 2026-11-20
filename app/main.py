@@ -56,6 +56,7 @@ from .services.github_snapshot_codec import decode_snapshot, GitHubSnapshotCodec
 from .services.github_bulk_import import discover_repositories, prepare_import_plan, apply_import_plan
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .services.project_timeline import load_project_timeline
+from .services.github_schedule import is_schedule_request, read_live_karel_schedule, preview_schedule, ScheduleReadError
 from .bootstrap import initialize_app, bootstrap_state
 
 app = FastAPI(title='Karel 2.0')
@@ -123,7 +124,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.36.2-pipeline-render-hotfix'
+APP_VERSION = '2.0.0-alpha.36.3-github-schedule-approval'
 
 
 PROJECT_SPEC_KINDS = {
@@ -182,6 +183,7 @@ def action_result_text(batch: dict) -> str:
             labels={
                 'update_project':'Projekt byl upraven.',
                 'update_project_map':'Projektová mapa byla aktualizována.',
+                'approve_project_schedule':'Harmonogram byl schválen a ověřeně uložen do Pipeline. GitHub Issues nebyly změněny.',
                 'create_task':'Úkol byl vytvořen.',
                 'update_task':'Úkol byl upraven.',
                 'archive_task':'Úkol byl archivován.',
@@ -941,6 +943,72 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     if superseded:
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_not_approved',detail='Neschváleno – diskuze pokračovala.'))
         db.flush()
+
+    # A request to prepare a project timeline from GitHub is a real source
+    # operation, not a generic LLM answer. Verify the HEAD and source blob,
+    # then stage an approval through the existing action engine.
+    if not attachment_meta and is_schedule_request(user_msg.content):
+        try:
+            schedule = read_live_karel_schedule(db, p, u)
+            latest = db.scalar(select(ProjectMemory).where(
+                ProjectMemory.project_id == p.id,
+                ProjectMemory.kind == 'project_schedule',
+                ProjectMemory.verified == True,
+            ).order_by(ProjectMemory.id.desc()))
+            previous = {}
+            if latest:
+                try: previous = json.loads(latest.content)
+                except (ValueError, TypeError): previous = {}
+            if (previous.get('milestones') == schedule['milestones'] and
+                    previous.get('source_commit_sha') == schedule['source_commit_sha']):
+                answer = (
+                    'Tento harmonogram z GitHub revize ' +
+                    schedule['source_commit_sha'][:12] +
+                    ' je již schválený a uložený. '
+                    'Ověř ho na /projects/' + str(p.id) +
+                    '?view=development#project-timeline. '
+                    'Do GitHub Issues/Projects jsem nic nezapisoval.'
+                )
+            else:
+                action = create_pending_action(
+                    db, p.id, {
+                        'type': 'approve_project_schedule',
+                        'title': 'Schválit harmonogram a uložit jej do Pipeline',
+                        'payload': schedule,
+                    }, source_message_id=user_msg.id,
+                )
+                if not action:
+                    raise ScheduleReadError(
+                        'Nepodařilo se vytvořit bezpečný schvalovací návrh.')
+                answer = preview_schedule(schedule)
+            db.add(ProjectEvent(
+                project_id=p.id, user_id=u.id,
+                event_type='project_schedule_github_proposed',
+                detail=json.dumps({
+                    'source': schedule['source'],
+                    'sha': schedule['source_commit_sha'][:12],
+                    'milestones': len(schedule['milestones']),
+                }, ensure_ascii=False),
+            ))
+        except ScheduleReadError as exc:
+            answer = (
+                'Časovou osu jsem nemohl ověřeně připravit z GitHubu: ' +
+                str(exc) + '\nV Pipeline se může zobrazovat pouze orientační '
+                'návrh dodaný s aplikací. Žádnou schvalovací akci ani změnu '
+                'GitHubu jsem nevytvořil.'
+            )
+            db.add(ProjectEvent(
+                project_id=p.id, user_id=u.id,
+                event_type='project_schedule_github_read_failed',
+                detail=str(exc)[:350],
+            ))
+        db.add(Message(
+            chat_id=c.id, user_id=None, role='assistant', content=answer
+        ))
+        c.updated_at=datetime.utcnow()
+        p.updated_at=datetime.utcnow()
+        db.commit()
+        return RedirectResponse(destination+anchor,303)
 
     # Structured project brief is a distinct workflow, not a generic
     # one-field write of the previous assistant message. Read project-wide

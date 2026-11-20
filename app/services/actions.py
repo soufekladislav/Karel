@@ -19,7 +19,7 @@ PROJECT_SPEC_KINDS = {
 
 ALLOWED_TASK_STATUS = {'todo','working','waiting_user','testing','done','failed','archived'}
 ALLOWED_ACTIONS = {
-    'update_workflow_stage','choose_project_map_field','update_project','update_project_map','create_task','update_task','archive_task','delete_task','save_decision','save_note','save_library_item','update_library_item'
+    'approve_project_schedule','update_workflow_stage','choose_project_map_field','update_project','update_project_map','create_task','update_task','archive_task','delete_task','save_decision','save_note','save_library_item','update_library_item'
 }
 
 
@@ -234,6 +234,70 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
         }
         anchor = anchors.get(next(iter(changed))) if len(changed)==1 else 'project-map'
         result.update({'project_id': project.id, 'fields': verified, 'target_url': f'/projects/{project.id}?view=development#{anchor}'})
+
+    elif atype == 'approve_project_schedule':
+        # Project milestones are different from the seven workflow stages.
+        # A real user confirmation writes one versioned, validated timeline;
+        # external GitHub write remains a separate, unimplemented action.
+        from .project_timeline import normalize_milestones, MEMORY_KIND
+        import re
+        source_sha = str(payload.get('source_commit_sha') or '')
+        source_repo = str(payload.get('repo') or '')
+        if payload.get('source') != 'github_verified_document':
+            raise ValueError('Harmonogram nemá ověřený GitHub zdroj.')
+        if source_repo != 'soufekladislav/Karel' or not re.fullmatch(
+                r'[a-f0-9]{40}', source_sha):
+            raise ValueError('Chybí ověřená identita GitHub revize.')
+        if ' '.join((project.name or '').casefold().split()) not in (
+                'karel', 'developer karel'):
+            raise ValueError('Návrh nepatří tomuto projektu.')
+        milestones = normalize_milestones(payload.get('milestones'))
+        if len(milestones) != len(payload.get('milestones') or []) or len(milestones) < 2:
+            raise ValueError('Zadaný harmonogram není validní.')
+        old = db.scalar(select(ProjectMemory).where(
+            ProjectMemory.project_id == project.id,
+            ProjectMemory.kind == MEMORY_KIND, ProjectMemory.verified == True,
+        ).order_by(ProjectMemory.id.desc()))
+        old_doc = {}
+        if old:
+            try: old_doc = json.loads(old.content)
+            except (ValueError, TypeError): pass
+        if (old_doc.get('milestones') == milestones and
+                old_doc.get('source_commit_sha') == source_sha):
+            version = int(old_doc.get('version') or 1)
+            change = False
+        else:
+            version = int(old_doc.get('version') or 0) + 1
+            doc = {
+                'version': version, 'milestones': milestones,
+                'source': 'github_verified_document',
+                'source_commit_sha': source_sha,
+                'source_url': str(payload.get('source_url') or '')[:400],
+                'approved_at': datetime.utcnow().isoformat(),
+                'approved_by_user_id': user_id,
+                'github_sync_status': 'not_written',
+            }
+            db.add(ProjectMemory(
+                project_id=project.id, kind=MEMORY_KIND,
+                title='Schválený harmonogram v' + str(version),
+                content=json.dumps(doc, ensure_ascii=False),
+                verified=True,
+            ))
+            db.flush()
+            change = True
+        checked = db.scalar(select(ProjectMemory).where(
+            ProjectMemory.project_id == project.id,
+            ProjectMemory.kind == MEMORY_KIND, ProjectMemory.verified == True,
+        ).order_by(ProjectMemory.id.desc()))
+        if not checked or normalize_milestones(
+                json.loads(checked.content).get('milestones')) != milestones:
+            raise ValueError('Harmonogram se nepodařilo ověřeně uložit.')
+        result.update({
+            'project_id': project.id, 'version': version,
+            'milestones_saved': len(milestones), 'changed': change,
+            'github_write': 'not_performed',
+            'target_url': f'/projects/{project.id}?view=development#project-timeline',
+        })
 
     elif atype == 'update_workflow_stage':
         from .workflow import get_stages, STATUSES

@@ -677,3 +677,19 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .karel-timeline-empty strong{font-size:14px;color:#293c25}
 .karel-timeline-empty p{line-height:1.65;margin:6px 0}
 @media(max-width:760px){.karel-timeline{padding:15px}.karel-timeline-head{flex-direction:column}.karel-timeline-head .btn{width:100%}.karel-timeline-meta{gap:9px}}
+
+/* Pipeline desktop: one page scroll instead of nested scroll containers.
+   Keep chat/editor scrolling unchanged. */
+@media(min-width:1151px){
+  .project-v2 .project-app.with-context-chat.pipeline-view .project-content{
+    height:100vh;min-height:0;overflow-y:auto;overflow-x:hidden;
+    overscroll-behavior:contain
+  }
+  .project-v2 .project-app.with-context-chat.pipeline-view .content-view{
+    height:auto!important;min-height:0!important;max-height:none!important;
+    overflow:visible!important
+  }
+  .project-v2 .project-app.with-context-chat.pipeline-view .karel-workspace-tabs{
+    position:sticky;top:0;z-index:15
+  }
+}
