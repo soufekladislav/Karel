@@ -12,6 +12,7 @@ from sqlalchemy import select
 from ..models import Message, ProjectMemory
 from .project_timeline import load_project_timeline, normalize_milestones
 from .github_chat_audit import repository_for_project, _superadmin
+from .schedule_feasibility import assess_replan
 
 class ReplanError(ValueError):
     pass
@@ -246,10 +247,12 @@ def _generate_milestones(milestones: list[dict], target: date, today: date) -> l
         m["start_date"], m["due_date"] = start_date.isoformat(), end_date.isoformat()
         m["status"] = "planned" if m.get("status") not in ("completed",) else "completed"
         if i == 4:
-            m["title"] = "Funkční testovací verze Karla"
+            m["title"] = "Omezené testovací MVP Karla"
             m["acceptance"] = (
-                "Hlavní vývojové scénáře Karel → GitHub → Fresh AI Engine / Codex "
-                "musí projít funkčními testy. Vývoj připravit nejpozději "
+                "Omezené MVP: projektový chat, zadání, schvalování Pipeline, "
+                "ověřený GitHub READ a publikování harmonogramu do GitHub dokumentu. "
+                "Plná automatizace Issues/Projects, Codex, staging a produkce "
+                "jsou mimo tuto přejímku. Vývoj připravit nejpozději "
                 + _date_string(_prev_weekday(target)) +
                 "; " + _date_string(target) +
                 " je cílový termín předání testerovi, nikoli potvrzený produkční release.")
@@ -268,9 +271,11 @@ def _generate_milestones(milestones: list[dict], target: date, today: date) -> l
                 "health, ověření a možnost rollbacku.")
             m["dependencies"] = "M5"
         if i == 3:
+            m["title"] = "Schvalování a GitHub publikace harmonogramu"
             m["acceptance"] = (
-                "Schválené operace v GitHub Issues, řízení stavů "
-                "a konkrétní ověřený zápis. Bez CI a schválení neprovádět merge.")
+                "Backend schvaluje a verzovaně ukládá Pipeline; "
+                "schválená verze se ověřeně publikuje do GitHub dokumentu. "
+                "Zápisy polí Issues/Projects v2 a automatický merge jsou mimo MVP.")
         if i == 0:
             m["acceptance"] = (
                 "Uzavření rozsahu MVP, skutečný audit bezpečnosti, GitHubu "
@@ -278,7 +283,7 @@ def _generate_milestones(milestones: list[dict], target: date, today: date) -> l
     return normalize_milestones([by_id[f"M{i}"] for i in range(7)])
 
 def prepare_replan(db, project, chat, user, message: Message,
-                   *, today: date | None = None) -> dict:
+                   *, today: date | None = None, scope: str = 'limited_mvp') -> dict:
     today = today or date.today()
     if " ".join((project.name or "").casefold().split()) not in (
             "karel", "developer karel"):
@@ -288,7 +293,12 @@ def prepare_replan(db, project, chat, user, message: Message,
     repo, _ = repository_for_project(db, project, user)
     if not _superadmin(user) or repo != "soufekladislav/Karel":
         raise ReplanError("Nemáš ověřený přístup k harmonogramu tohoto projektu.")
+    if scope != 'limited_mvp':
+        raise ReplanError(
+            'Bez výslovné volby omezeného MVP nelze tento krátký '
+            'harmonogram předložit ke schválení.')
     target = _chat_target(db, chat.id, message, today=today)
+    feasibility = assess_replan(db, project.id, target, today)
     approved_row = db.scalar(select(ProjectMemory).where(
         ProjectMemory.project_id == project.id,
         ProjectMemory.kind == "project_schedule",
@@ -310,6 +320,9 @@ def prepare_replan(db, project, chat, user, message: Message,
         "baseline_approved_row_id": approved_row.id if approved_row else 0,
         "target_test_date": target.isoformat(),
         "source_commit_sha": "",
+        "scope": "limited_mvp",
+        "risk_acknowledged": True,
+        "feasibility": feasibility,
         "milestones": milestones,
     }
 
@@ -322,10 +335,19 @@ def preview_replan(payload: dict, old_items: list[dict]) -> str:
         "Pokud termín vychází na víkend, poslední vývojové změny "
         "musí být připravené v předchozí pracovní den.",
         "Následné delší testování a stabilizace zůstávají samostatným milníkem.",
+        "**Rozsah: omezené testovací MVP, nikoli kompletně autonomní Karel.**",
+        "Není doložená kapacita, proto jde o ambiciózní cíl vyžadující "
+        "postupné technické přejímky.",
+        "",
+        "**Hlavní rizika:**",
+    ]
+    for warning in payload.get("feasibility", {}).get("warnings", []):
+        text.append("- " + str(warning))
+    text.extend([
         "",
         "| Milník | Původní termín | Nový termín |",
         "|---|---|---|",
-    ]
+    ])
     for m in payload["milestones"]:
         old = older.get(m["id"], {})
         text.append("| " + m["id"] + " – " + m["title"] +
@@ -333,6 +355,9 @@ def preview_replan(payload: dict, old_items: list[dict]) -> str:
                     " | **" + m["due_date"] + "** |")
     text += [
         "",
+        "**Rozhodnutí ke schválení:** přijímáš omezený rozsah MVP a "
+        "uvedená rizika. Plnou autonomizaci Codexu, Github Projects v2 a "
+        "nasazování tím neschvaluješ jako hotové.",
         "**Zatím jsem nezměnil uloženou Pipeline ani GitHub Issues.**",
         "Schval tento konkrétní návrh. Po potvrzení ho zapíšu do "
         "Projektové paměti jako novou verzi a ověřím skutečné datumy v Pipeline.",

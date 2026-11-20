@@ -58,6 +58,8 @@ from .services.workflow import get_stages, alerts as workflow_alerts, context as
 from .services.project_timeline import load_project_timeline
 from .services.github_schedule import is_schedule_request, read_live_karel_schedule, preview_schedule, ScheduleReadError
 from .services.project_schedule_replan import (is_replan_request, is_schedule_overview_request, preview_current_schedule, prepare_replan, preview_replan, ReplanError, _chat_target)
+from .services.schedule_feasibility import selected_scope, is_scope_choice, assess_replan, risk_dialogue
+from .services.github_schedule_publisher import (sync_after_approved_action, latest_sync_status, latest_approved_row, publish_approved_schedule, record_schedule_sync, ScheduleSyncError)
 from .bootstrap import initialize_app, bootstrap_state
 
 app = FastAPI(title='Karel 2.0')
@@ -125,7 +127,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.36.5-schedule-intent-verified'
+APP_VERSION = '2.0.0-alpha.37.1-pipeline-github-publish'
 
 
 PROJECT_SPEC_KINDS = {
@@ -531,6 +533,18 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         db, p, is_admin=is_superadmin(u),
         linked_repo=github_link.repository_full_name if github_link else None,
     )
+    timeline_sync=latest_sync_status(db, p.id)
+    approved_version=0
+    if project_timeline['approved']:
+        approved_row=latest_approved_row(db,p.id)
+        if approved_row:
+            try: approved_version=int(json.loads(approved_row.content).get('version') or 0)
+            except (ValueError,TypeError): approved_version=0
+    if not project_timeline['approved']:
+        timeline_sync={'state':'not_approved','version':None}
+    elif timeline_sync.get('version') != approved_version:
+        timeline_sync={'state':'not_attempted','version':approved_version,
+                       'reason':'Schválený harmonogram ještě nebyl zveřejněn do GitHubu.'}
     # Make a pending timeline revision visible right on Pipeline even when
     # the proposal was created in a different chat of the same project.
     pending_schedule=None
@@ -549,19 +563,24 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
                 if isinstance(item,dict) and item.get('id')=='M4'), '')
             valid_proposal = True
             if proposal_payload.get('source') == 'user_chat_replan':
+                if (proposal_payload.get('scope') != 'limited_mvp' or
+                        proposal_payload.get('risk_acknowledged') is not True):
+                    valid_proposal=False
                 try:
                     requested_date = _chat_target(
                         db, source_chat.id, source_message,
                         today=(source_message.created_at.date()
                                if source_message.created_at else date.today()),
                     )
-                    valid_proposal = requested_date.isoformat() == target
+                    valid_proposal = (valid_proposal and requested_date.isoformat() == target)
                 except ReplanError:
                     valid_proposal = False
             pending_schedule={
                 'chat_id': source_chat.id, 'target_date': target,
                 'items': pending_items, 'kind': proposal_payload.get('source'),
                 'valid': valid_proposal,
+                'scope': proposal_payload.get('scope'),
+                'feasibility': proposal_payload.get('feasibility') or {},
             }
         break
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
@@ -591,7 +610,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         github_status=github_status,github_link=github_link,project_focus=project_focus,
         project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
         project_mode=project_mode_name,project_journey=project_journey,
-        project_timeline=project_timeline,pending_schedule=pending_schedule,
+        project_timeline=project_timeline,pending_schedule=pending_schedule,timeline_sync=timeline_sync,
         website_url=website_url,core_state=core_state,
         can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
@@ -969,7 +988,11 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=action_result_text(batch)))
             db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_batch_confirmed',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
             c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-            return RedirectResponse(destination+'&notice='+quote(action_result_text(batch))+anchor,303)
+            sync_state=sync_after_approved_action(db,p,u,batch.get('results',[]))
+            sync_note=((' GitHub dokument: '+str(sync_state['state'])+'.')
+                       if sync_state else '')
+            return RedirectResponse(destination+'&notice='+quote(
+                action_result_text(batch)+sync_note)+anchor,303)
 
     # Explaining a project's existing schedule is a read-only operation. Do
     # not dismiss an outstanding approval merely because the user asks to
@@ -1003,10 +1026,11 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_not_approved',detail='Neschváleno – diskuze pokračovala.'))
         db.flush()
 
-    # Schedule changes discussed in chat must NOT fall through the generic
-    # "save project_plan text" planner. Reconstruct a date from recent user
-    # messages, calculate a complete milestone diff, and require approval.
-    if not attachment_meta and is_replan_request(user_msg.content):
+    # A requested earlier deadline is not a verified estimate. Start a
+    # business discussion about the scope and risks; only a deliberately
+    # selected limited MVP can create an approvable dated proposal.
+    if not attachment_meta and (
+            is_replan_request(user_msg.content) or is_scope_choice(user_msg.content)):
         try:
             old_timeline = load_project_timeline(
                 db, p, is_admin=is_superadmin(u),
@@ -1014,26 +1038,68 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
                 if ' '.join((p.name or '').casefold().split()) in
                 ('karel', 'developer karel') else None,
             )
-            schedule = prepare_replan(db, p, c, u, user_msg)
-            action = create_pending_action(
-                db, p.id, {
-                    'type': 'approve_project_schedule',
-                    'title': 'Schválit nové termíny harmonogramu',
-                    'payload': schedule,
-                }, source_message_id=user_msg.id,
-            )
-            if action is None:
-                raise ReplanError('Návrh harmonogramu se nepodařilo připravit.')
-            answer = preview_replan(schedule, old_timeline['items'])
-            db.add(ProjectEvent(
-                project_id=p.id, user_id=u.id,
-                event_type='project_schedule_replan_proposed',
-                detail=json.dumps({
-                    'target_test_date': schedule['target_test_date'],
-                    'milestones': len(schedule['milestones']),
-                    'source': schedule['base_source'],
-                }, ensure_ascii=False),
-            ))
+            from .services.project_schedule_replan import _chat_target
+            target = _chat_target(
+                db, c.id, user_msg, today=date.today())
+            scope = selected_scope(user_msg.content)
+            if scope != 'limited_mvp':
+                # "Finish all features by 20 Dec" is not silently redefined
+                # as a limited pilot. Expose BOTH choices and ask the owner.
+                assessment = assess_replan(db, p.id, target, date.today())
+                answer = risk_dialogue(
+                    target, assessment, requested_scope=scope)
+                if scope == 'full':
+                    # If the owner chooses full scope, make progress on the
+                    # technical audit; do not repeat the A/B questionnaire.
+                    try:
+                        from .services.github_chat_audit import audit_for_chat
+                        report, github_freshness = audit_for_chat(db, p, u)
+                        answer += (
+                            '\n\n### GitHub podklady pro nový odhad'
+                            '\n' + report +
+                            '\n\nTermíny doplním až po identifikaci '
+                            'zbývající práce a kapacity; dosud nic '
+                            'nepovažuji za schválený nový termín.'
+                        )
+                    except Exception:
+                        answer += (
+                            '\n\nŽivý GitHub audit se nyní nepodařilo '
+                            'ověřeně provést. Rozpracovaný projekt '
+                            'nepřepisuji odhadem.'
+                        )
+                db.add(ProjectEvent(
+                    project_id=p.id, user_id=u.id,
+                    event_type='project_schedule_feasibility_review',
+                    detail=json.dumps({
+                        'requested_date': target.isoformat(),
+                        'scope': scope,
+                        'risk': assessment['risk'],
+                    }, ensure_ascii=False),
+                ))
+            else:
+                schedule = prepare_replan(
+                    db, p, c, u, user_msg, scope='limited_mvp')
+                action = create_pending_action(
+                    db, p.id, {
+                        'type': 'approve_project_schedule',
+                        'title': 'Schválit termíny omezeného MVP a známá rizika',
+                        'payload': schedule,
+                    }, source_message_id=user_msg.id,
+                )
+                if action is None:
+                    raise ReplanError(
+                        'Nepodařilo se vytvořit schvalovací návrh.')
+                answer = preview_replan(schedule, old_timeline['items'])
+                db.add(ProjectEvent(
+                    project_id=p.id, user_id=u.id,
+                    event_type='project_schedule_replan_proposed',
+                    detail=json.dumps({
+                        'target_test_date': schedule['target_test_date'],
+                        'scope': schedule['scope'],
+                        'milestones': len(schedule['milestones']),
+                        'risk': schedule['feasibility']['risk'],
+                    }, ensure_ascii=False),
+                ))
         except ReplanError as exc:
             answer = 'Termíny jsem nezměnil: ' + str(exc)
             db.add(ProjectEvent(
@@ -1041,7 +1107,8 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
                 event_type='project_schedule_replan_failed',
                 detail=str(exc)[:350],
             ))
-        db.add(Message(chat_id=c.id, user_id=None, role='assistant', content=answer))
+        db.add(Message(
+            chat_id=c.id, user_id=None, role='assistant', content=answer))
         c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow()
         db.commit()
         return RedirectResponse(destination+anchor, 303)
@@ -1307,13 +1374,24 @@ def approve_chat_actions(request:Request, project_id:int, chat_id:int, return_vi
     elif typ=='update_project': label='Otevřít projekt'
     db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=action_result_text(batch)))
     db.commit()
+    sync_state=sync_after_approved_action(db,p,u,batch.get('results',[]))
+    if sync_state:
+        sync_note=('GitHub dokument: ověřeně synchronizován.' if
+                   sync_state['state']=='synced' else
+                   'GitHub dokument čeká na synchronizaci: '+
+                   str(sync_state.get('reason') or sync_state['state']))
+        db.add(Message(chat_id=c.id,user_id=None,role='assistant',
+                       content=sync_note))
+        db.commit()
+        if sync_state['state'] != 'synced':
+            notice += ' GitHub dokument čeká: '+sync_state['state']+'.'
     if return_view == 'development':
         # A button embedded in Pipeline must return to the actual result,
         # not unexpectedly redirect back into the long chat history.
         if batch.get('ok') and typ == 'approve_project_schedule':
             return RedirectResponse(
                 f'/projects/{p.id}?view=development&notice=' +
-                quote('Harmonogram byl schválen a uložen. GitHub Issues se nezměnily.') +
+                quote(notice+' GitHub Issues/Projects nebyly změněny.') +
                 '#project-timeline',303)
         first_error = (batch.get('errors') or [{}])[0].get('error') or notice
         return RedirectResponse(
@@ -1339,6 +1417,30 @@ def choose_action_field(request:Request, project_id:int, chat_id:int, action_id:
     db.commit()
     return RedirectResponse(f'/projects/{p.id}?view=chat&chat_id={c.id}#bottom',303)
 
+@app.post('/projects/{project_id}/schedule/sync-github')
+def retry_approved_schedule_sync(request:Request, project_id:int,
+                                 db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    p=get_project_or_404(db,u,project_id,write=True)
+    if not is_superadmin(u):
+        raise HTTPException(403, 'GitHub publikování smí provádět jen správce.')
+    if not latest_approved_row(db,p.id):
+        return redirect_project(p.id,error='Nejdříve schval datumovaný harmonogram.')
+    # No new schedule approval or edit; retry projection of a PREVIOUSLY
+    # approved, versioned local plan.
+    result=sync_after_approved_action(db,p,u,[{'type':'approve_project_schedule'}])
+    if result['state']=='synced':
+        note='Schválený harmonogram je ověřeně publikovaný v GitHubu.'
+        return RedirectResponse(
+            f'/projects/{p.id}?view=development&notice='+quote(note)+
+            '#project-timeline',303)
+    return RedirectResponse(
+        f'/projects/{p.id}?view=development&error='+quote(
+            'GitHub publikování se nepodařilo: '+
+            str(result.get('reason') or result['state']))+
+        '#project-timeline',303)
+
+
 @app.post('/projects/{project_id}/actions/confirm-latest')
 def confirm_latest_actions(request:Request, project_id:int, db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
@@ -1348,7 +1450,10 @@ def confirm_latest_actions(request:Request, project_id:int, db:Session=Depends(g
     batch=execute_pending_group(db,p,rows,u.id)
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_batch_confirmed',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?view=chat&notice='+quote(action_result_text(batch)),303)
+    sync_state=sync_after_approved_action(db,p,u,batch.get('results',[]))
+    note=('. GitHub dokument: '+str(sync_state['state']) if sync_state else '')
+    return RedirectResponse(f'/projects/{p.id}?view=chat&notice='+
+                            quote(action_result_text(batch)+note),303)
 
 @app.post('/projects/{project_id}/actions/{action_id}/confirm')
 def confirm_action(request:Request, project_id:int, action_id:int, db:Session=Depends(get_db)):
@@ -1360,8 +1465,11 @@ def confirm_action(request:Request, project_id:int, action_id:int, db:Session=De
         db.commit()
     except ValueError as exc:
         db.rollback(); return redirect_project(p.id,error=str(exc))
-    # Mandatory control read is performed inside execute_pending_action; result is the verified state.
-    return RedirectResponse(f'/projects/{p.id}?view=chat&notice='+quote('Změna byla provedena a ověřena.'),303)
+    # The approved DB state is durable before any external HTTP write.
+    sync_state=sync_after_approved_action(db,p,u,[result])
+    note=('. GitHub dokument: '+str(sync_state['state']) if sync_state else '')
+    return RedirectResponse(f'/projects/{p.id}?view=chat&notice='+
+                            quote('Změna byla uložena do Karla.'+note),303)
 
 @app.post('/projects/{project_id}/actions/{action_id}/dismiss')
 def dismiss_action(request:Request, project_id:int, action_id:int, db:Session=Depends(get_db)):

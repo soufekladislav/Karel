@@ -21,6 +21,7 @@ from app.services.project_schedule_replan import (
     is_replan_request, is_schedule_overview_request, prepare_replan, preview_replan, ReplanError, _request_date,
 )
 from app.services.project_timeline import load_project_timeline
+from app.services.schedule_feasibility import selected_scope, assess_replan, risk_dialogue, is_scope_choice
 from app.services.actions import (
     create_pending_action, execute_pending_group, pending_group, execute_pending_action,
 )
@@ -200,6 +201,22 @@ class ReplanTests(unittest.TestCase):
                 ProjectMemory.kind == "project_schedule")).all(), [])
         self.assertEqual(json.loads(row.content)["state"], "pending")
 
+    def test_scope_negotiation_explains_risks_before_schedule_approval(self):
+        self.assertEqual(selected_scope("Kompletní Karel do 20.12."),"full")
+        self.assertEqual(selected_scope("Volím variantu A"),"limited_mvp")
+        self.assertTrue(is_scope_choice("Beru variantu A (MVP)"))
+        result = assess_replan(
+            self.db,self.project.id,date(2026,12,20),NOW)
+        self.assertEqual(result["risk"],"high")
+        self.assertIn("včetně", "včetně")
+        summary = risk_dialogue(date(2026,12,20),result,
+                                requested_scope="full")
+        self.assertIn("nelze",summary)
+        self.assertIn("Varianta A",summary)
+        self.assertIn("Varianta B",summary)
+        self.assertIn("Codex",summary)
+        self.assertIn("nejpozději 18.12.2026",summary)
+
     def test_real_chat_route_uses_date_intent_and_approves_current_timeline(self):
         from app import main
         query = ("Máme v pipeline nastaveno do 29.1., chtěl bych to "
@@ -212,9 +229,24 @@ class ReplanTests(unittest.TestCase):
         assistant = self.db.scalar(select(Message).where(
             Message.chat_id == self.chat.id,
             Message.role == "assistant").order_by(Message.id.desc()))
+        self.assertIn("Varianta A", assistant.content)
+        self.assertIn("Varianta B", assistant.content)
         self.assertIn("20.12.2026", assistant.content)
-        self.assertNotIn(
-            "Funkční testovací verze do 29.01.2027", assistant.content)
+        self.assertFalse(pending_group(self.db, self.project.id,
+                                       chat_id=self.chat.id))
+        # The user chooses a reduced scope after hearing the blockers.
+        with patch("app.main.require_user", return_value=self.user):
+            chosen = asyncio.run(main.send_message(
+                SimpleNamespace(), self.project.id, self.chat.id,
+                message="Volím variantu A (omezené MVP)", attachments=[],
+                db=self.db))
+        self.assertEqual(chosen.status_code, 303)
+        answer = self.db.scalar(select(Message).where(
+            Message.chat_id == self.chat.id, Message.role == "assistant"
+        ).order_by(Message.id.desc()))
+        self.assertIn("**Funkční testovací verze do 20.12.2026.**",
+                      answer.content)
+        self.assertIn("rizika", answer.content)
         pending = pending_group(self.db, self.project.id, chat_id=self.chat.id)
         self.assertEqual(len(pending), 1)
         self.assertEqual(

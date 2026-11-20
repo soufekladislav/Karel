@@ -26,6 +26,12 @@ class Settings:
     # Single-admin P1: read-only GitHub credential, never in DB or UI.
     github_read_token = os.getenv('GITHUB_READ_TOKEN', '')
     github_allowed_owners = os.getenv('GITHUB_ALLOWED_OWNERS', '')
+    # Separate Contents:write credential. Never reuse a read-only token for
+    # mutation or expose its value in UI, logs, diagnostics or databases.
+    github_schedule_write_token = os.getenv('GITHUB_SCHEDULE_WRITE_TOKEN', '')
+    github_schedule_write_enabled = os.getenv(
+        'GITHUB_SCHEDULE_WRITE_ENABLED', 'false'
+    ).lower() in ('1', 'true', 'yes', 'on')
     fresh_core_vault_key = os.getenv('FRESH_CORE_VAULT_KEY', '')
     fresh_core_allowed_hosts = os.getenv('FRESH_CORE_ALLOWED_HOSTS', '')
     manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()

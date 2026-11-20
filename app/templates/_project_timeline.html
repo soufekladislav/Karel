@@ -8,17 +8,27 @@
         <strong>Čeká na tvé schválení: nový harmonogram</strong>
         <p>Navržený termín testovací verze: <b>{{ pending_schedule.target_date }}</b>. Dosud zobrazený plán se do schválení nezměnil.</p>
       </div>
+      {% if pending_schedule.scope == 'limited_mvp' %}
+      <p><strong>Rozsah:</strong> omezené testovací MVP, nikoli plně autonomní Karel.
+      Full GitHub Projects v2, Codex provoz a automatické nasazování nejsou součástí této přejímky.</p>
+      {% endif %}
       {% if pending_schedule.valid is defined and not pending_schedule.valid %}
       <strong class="is-late">Návrh je chybný: datum neodpovídá původnímu požadavku. Vytvoř nový návrh v chatu.</strong>
       {% elif can_edit %}
       <form method="post" action="/projects/{{ project.id }}/chat/{{ pending_schedule.chat_id }}/actions/approve">
         <input type="hidden" name="return_view" value="development">
-        <button class="btn primary small" type="submit">Schválit nové termíny</button>
+        <button class="btn primary small" type="submit">{{ 'Schválit nové termíny a omezené MVP' if pending_schedule.kind == 'user_chat_replan' else 'Schválit harmonogram' }}</button>
       </form>
       {% endif %}
     </div>
     <details>
-      <summary>Zobrazit všech 7 navržených termínů a přejít do diskuze</summary>
+      <summary>Zobrazit všechny termíny, rizika a přejít do diskuze</summary>
+      {% if pending_schedule.feasibility and pending_schedule.feasibility.warnings %}
+      <strong>Rizika a předpoklady</strong>
+      <ul>{% for warning in pending_schedule.feasibility.warnings %}
+        <li>{{ warning }}</li>
+      {% endfor %}</ul>
+      {% endif %}
       <div class="karel-pending-dates">
         {% for milestone in pending_schedule['items'] %}
         <div><span>{{ milestone.id }} · {{ milestone.title }}</span><strong>{{ milestone.due_date }}</strong></div>
@@ -43,6 +53,27 @@
     </div>
     <a class="btn secondary small" href="/projects/{{ project.id }}?view=chat">Probrat termíny s Karlem</a>
   </div>
+  {% if project_timeline.approved %}
+    <div class="karel-timeline-sync" aria-label="Stav přenosu harmonogramu do GitHubu">
+      <div>
+        <strong>GitHub harmonogram:</strong>
+        {% if timeline_sync is defined and timeline_sync.state == 'synced' %}
+          <span>Ověřeně publikováno – verze {{ timeline_sync.version }}</span>
+          {% if timeline_sync.url %}<a href="{{ timeline_sync.url }}" target="_blank" rel="noopener noreferrer">Otevřít GitHub dokument</a>{% endif %}
+        {% elif timeline_sync is defined and timeline_sync.state in ['blocked', 'failed', 'conflict'] %}
+          <span>Pipeline je schválená, ale GitHub publikace není dokončená: {{ timeline_sync.reason }}</span>
+        {% else %}
+          <span>Schválené datumy v Karlovi čekají na ověřený zápis do GitHubu.</span>
+        {% endif %}
+        <small>Zveřejnění harmonogramu v GitHub dokumentu není totéž jako synchronizace termínových polí Issues/Projects v2.</small>
+      </div>
+      {% if can_import_portfolio and (timeline_sync is not defined or timeline_sync.state != 'synced') %}
+      <form method="post" action="/projects/{{ project.id }}/schedule/sync-github">
+        <button class="btn secondary small" type="submit">Opakovat publikování do GitHubu</button>
+      </form>
+      {% endif %}
+    </div>
+  {% endif %}
   {% if project_timeline['items'] %}
     <div class="karel-timeline-meta" aria-label="Souhrn harmonogramu">
       <span class="karel-timeline-state {% if project_timeline.approved %}approved{% endif %}">

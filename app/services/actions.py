@@ -201,6 +201,14 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
         raise ValueError('Neznámý typ akce.')
 
     if atype == 'approve_project_schedule' and payload.get('source') == 'user_chat_replan':
+        # Revisions created by the previous mechanical planner have no scope
+        # or risk review. They are unsafe to approve retroactively.
+        if (payload.get('scope') != 'limited_mvp' or
+                payload.get('risk_acknowledged') is not True or
+                not isinstance(payload.get('feasibility'), dict)):
+            raise ValueError(
+                'Starý návrh nemá odsouhlasený rozsah a rizika. '
+                'Nejdřív projdi varianty v chatu a vytvoř nový harmonogram.')
         # An old alpha.36.4 proposal could misread "29 Jan -> 20 Dec"
         # and must never remain approvable after an upgrade.
         from .project_schedule_replan import _chat_target, ReplanError
@@ -334,6 +342,9 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
                 'approved_at': datetime.utcnow().isoformat(),
                 'approved_by_user_id': user_id,
                 'github_sync_status': 'not_written',
+                'scope': str(payload.get('scope') or ''),
+                'feasibility': payload.get('feasibility') if (
+                    isinstance(payload.get('feasibility'), dict)) else {},
             }
             db.add(ProjectMemory(
                 project_id=project.id, kind=MEMORY_KIND,
