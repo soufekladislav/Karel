@@ -111,6 +111,23 @@ class BeginnerProjectRoutesTests(unittest.TestCase):
         self.assertEqual(memory.content,'https://example.cz')
         self.assertFalse(memory.verified)
 
+    def test_legacy_github_project_can_save_wordpress_site_without_losing_repo_mode(self):
+        p=Project(owner_id=self.user.id,name='Web – Adrenaline Race')
+        self.db.add(p)
+        self.db.flush()
+        main.save_project_spec_value(self.db,p.id,'project_type',DEVELOPMENT_TYPE)
+        self.db.commit()
+        with patch('app.main.require_user',return_value=self.user):
+            response=main.save_declared_website_url(
+                SimpleNamespace(),p.id,website_url='adrenalinerace.eu',db=self.db)
+        self.assertEqual(response.status_code,303)
+        spec=main.project_spec(self.db,p.id)
+        self.assertEqual(spec['project_type'], DEVELOPMENT_TYPE)
+        url=self.db.scalar(select(ProjectMemory).where(
+            ProjectMemory.project_id==p.id,
+            ProjectMemory.kind=='wordpress_site_url'))
+        self.assertEqual(url.content,'https://adrenalinerace.eu')
+
     def test_cross_user_cannot_reclassify_or_edit_url(self):
         other=User(email='foreign@example.com',password_hash='test',role='user')
         self.db.add(other)

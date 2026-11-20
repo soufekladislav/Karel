@@ -574,9 +574,8 @@ def save_declared_website_url(request: Request, project_id: int,
     """Store declared WordPress URL without contacting the given host."""
     u=require_user(request, db)
     p=get_project_or_404(db, u, project_id, manage=True)
-    spec=project_spec(db, p.id)
-    if project_mode(spec.get('project_type')) != 'wordpress':
-        raise HTTPException(400, 'Adresa webu patří k WordPress projektu.')
+    # Existing legacy and GitHub-linked projects may also connect WordPress.
+    # Project ownership and the explicit form action authorize this operation.
     if fresh_core_state(db, p.id)['has_key']:
         return RedirectResponse(
             f'/projects/{p.id}?view=website&error=' +
@@ -615,8 +614,8 @@ def fresh_core_manifest_connect(request: Request, project_id: int,
                                 db: Session=Depends(get_db)):
     user=require_user(request, db)
     project=get_project_or_404(db, user, project_id, manage=True)
-    if project_mode(project_spec(db, project.id).get('project_type'))!='wordpress':
-        raise HTTPException(400, 'Fresh Core patří k WordPress projektu.')
+    # Existing legacy and GitHub-linked projects may also connect WordPress.
+    # Project ownership and the explicit form action authorize this operation.
     site=db.scalar(select(ProjectMemory).where(
         ProjectMemory.project_id == project.id,
         ProjectMemory.kind == 'wordpress_site_url'
@@ -672,9 +671,8 @@ def fresh_core_connect(request: Request, project_id: int,
                        access_key: str=Form(...), db: Session=Depends(get_db)):
     user=require_user(request, db)
     project=get_project_or_404(db, user, project_id, manage=True)
-    spec=project_spec(db, project.id)
-    if project_mode(spec.get('project_type'))!='wordpress':
-        raise HTTPException(400, 'Připojení Fresh Core patří k WordPress projektu.')
+    # Existing legacy and GitHub-linked projects may also connect WordPress.
+    # Project ownership and the explicit form action authorize this operation.
     site=db.scalar(select(ProjectMemory).where(
         ProjectMemory.project_id == project.id,
         ProjectMemory.kind == 'wordpress_site_url'

@@ -22,11 +22,12 @@
   <a class="{% if view=='docs' %}active{% endif %}" href="/projects/{{ project.id }}?view=docs" {% if view=='docs' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">Z</span><b>Zadání a obchodní cíle</b>
   </a>
-  {% if project_mode == 'wordpress' %}
+  {% if project_mode == 'wordpress' or view == 'website' or (website_url|default('')) %}
   <a class="{% if view=='website' %}active{% endif %}" href="/projects/{{ project.id }}?view=website" {% if view=='website' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">WP</span><b>Můj WordPress</b>
   </a>
-  {% else %}
+  {% endif %}
+  {% if project_mode != 'wordpress' or (github_link|default(none)) %}
   <a class="{% if view=='github' %}active{% endif %}" href="/projects/{{ project.id }}/github" {% if view=='github' %}aria-current="page"{% endif %}>
     <span class="karel-nav-icon" aria-hidden="true">GH</span><b>GitHub</b>
   </a>
