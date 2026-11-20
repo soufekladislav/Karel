@@ -10,6 +10,7 @@ import html
 import re
 import httpx
 from urllib.parse import quote
+from itsdangerous import URLSafeTimedSerializer, BadSignature
 from fastapi import FastAPI, Request, Form, UploadFile, File, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -20,21 +21,34 @@ from sqlalchemy import select, or_, func
 
 from .config import settings
 from .database import Base, engine, get_db, SessionLocal
-from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Message, Task, ProjectFile, ProjectMemory, ProjectEvent, LibraryItem, ProjectStage
+from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Message, Task, ProjectFile, ProjectMemory, ProjectEvent, LibraryItem, ProjectStage, GitHubRepoLink
 from .auth import hash_password, verify_password, current_user
 from .services.context_builder import build_context
 from .services.orchestrator import orchestrate
 from .services.write_planner import plan_write_request, is_complex_project_brief
 from .services.engine import chat as engine_chat, health as engine_health, EngineError
 from .services.continuation import likely_truncated, continuation_request
-from .services.source_resolver import resolve_message_sources
+from .services.source_resolver import resolve_message_sources, fetch_public_manifest
 from .services.app_manifest import build_app_manifest
+from .services.security_selfcheck import collect_security_checks
+from .services.request_security import allow_browser_mutation, secure_production_configuration
+from .services.project_presentation import brief, github_connection_state, project_next_step
+from .services.project_journeys import (selected_project_type, project_mode, validate_site_url,
+                                         journey_for_project)
+from .services.fresh_core_project import (
+    connection_state as fresh_core_state, connect_readonly, refresh_readonly, disconnect_readonly,
+)
+from .services.fresh_core_reader import FreshCoreError
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
 from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
 from .services.files import save_upload, absolute_path, create_bundle, save_library_upload, absolute_library_path
 from .services.attachment_reader import attachments_context
 from .services import fresh_key
+from .services.github_connector import GitHubReader, GitHubSyncError, validate_repository
+from .services.github_snapshot_store import upsert_snapshot
+from .services.github_snapshot_codec import decode_snapshot, GitHubSnapshotCodecError
+from .services.github_bulk_import import discover_repositories, prepare_import_plan, apply_import_plan
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .bootstrap import initialize_app, bootstrap_state
 
@@ -43,6 +57,27 @@ app.add_middleware(SessionMiddleware, secret_key=settings.secret, https_only=set
 BASE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE / 'templates'))
 app.mount('/static', StaticFiles(directory=str(BASE / 'static')), name='static')
+
+
+@app.middleware('http')
+async def browser_mutation_security(request: Request, call_next):
+    # Missing/weak session signing must never be silently accepted in production.
+    if settings.environment == 'production' and not secure_production_configuration(
+            settings.app_url, settings.secret, settings.https_only):
+        return HTMLResponse('Karel není bezpečně nakonfigurován. Kontaktuj správce serveru.',
+                            status_code=503)
+    if request.method.upper() in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+        if not allow_browser_mutation(request.headers, settings.app_url):
+            return HTMLResponse('Požadavek byl odmítnut z bezpečnostních důvodů (původ formuláře).',
+                                status_code=403)
+    response = await call_next(request)
+    # Never permit browser caching of private pages and responses.
+    if request.url.path not in ('/static/app.css',) and not request.url.path.startswith('/static/'):
+        response.headers.setdefault('Cache-Control', 'no-store')
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+    return response
 
 def render_message_text(value):
     text=str(value or '')
@@ -82,7 +117,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.29'
+APP_VERSION = '2.0.0-alpha.34-fresh-core-read-audit'
 
 
 PROJECT_SPEC_KINDS = {
@@ -169,29 +204,24 @@ def startup():
 
 @app.get('/healthz')
 def healthz():
+    # This endpoint is public: never expose DB/host exceptions or admin state.
     state = bootstrap_state()
-    status = 200 if state.get('ok') else 503
-    return JSONResponse({
-        'app': settings.app_name,
-        'version': APP_VERSION,
-        'ok': bool(state.get('ok')),
-        'database': bool(state.get('database')),
-        'schema': bool(state.get('schema')),
-        'admin_seeded': bool(state.get('admin')),
-        'error': state.get('error'),
-    }, status_code=status)
+    ok = bool(state.get('ok'))
+    return JSONResponse({'ok': ok, 'status': 'ready' if ok else 'unavailable'},
+                        status_code=200 if ok else 503)
 
 def ctx(request, user=None, **extra):
     # One project switcher is available in the same sidebar on every authenticated page.
     sidebar_projects = []
     if user is not None:
         with SessionLocal() as sidebar_db:
-            sidebar_projects = sidebar_db.scalars(
-                select(Project).where(or_(
+            sidebar_query = select(Project)
+            if not is_superadmin(user):
+                sidebar_query = sidebar_query.where(or_(
                     Project.owner_id == user.id,
                     Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
-                )).order_by(Project.name)
-            ).all()
+                ))
+            sidebar_projects = sidebar_db.scalars(sidebar_query.order_by(Project.name)).all()
     return {'request': request, 'user': user, 'app_name': settings.app_name,
             'status_labels': STATUS_LABELS, 'sidebar_projects': sidebar_projects, **extra}
 
@@ -216,7 +246,7 @@ def normalize_relationship(value):
 def project_role(db, user, project):
     if project.owner_id == user.id:
         return "owner"
-    if user.role == "superadmin":
+    if is_superadmin(user):
         return "manager"
     row = db.scalar(select(ProjectMember).where(ProjectMember.project_id==project.id, ProjectMember.user_id==user.id))
     return normalize_access_role(row.role) if row else ""
@@ -229,6 +259,14 @@ def can_edit_project(db, user, project):
 
 def can_manage_project(db, user, project):
     return project_role(db, user, project) in {"owner", "manager"}
+
+def require_chat_in_project(db, project_id: int, chat_id: int) -> Chat:
+    """Never allow one project's form ID to bind a chat from another project."""
+    chat = db.get(Chat, chat_id)
+    if not chat or chat.project_id != project_id:
+        raise HTTPException(404)
+    return chat
+
 
 def get_project_or_404(db, user, project_id, *, write=False, manage=False):
     p = db.get(Project, project_id)
@@ -311,27 +349,61 @@ def login(request: Request, email: str=Form(...), password: str=Form(...), db: S
         except Exception: pass
     return RedirectResponse('/',303)
 
-@app.get('/logout')
+@app.post('/logout')
 def logout(request: Request):
     request.session.clear(); return RedirectResponse('/login',303)
 
 @app.get('/', response_class=HTMLResponse)
 def dashboard(request: Request, db: Session=Depends(get_db)):
     u = require_user(request, db)
-    q = select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.updated_at.desc(), Project.id.desc())
+    q = select(Project)
+    if not is_superadmin(u):
+        q = q.where(or_(Project.owner_id==u.id,
+                        Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id))))
+    q = q.order_by(Project.updated_at.desc(), Project.id.desc())
     all_projects = db.scalars(q).all()
     projects = [p for p in all_projects if (p.status or 'active') != 'archived']
     archived_projects = [p for p in all_projects if (p.status or 'active') == 'archived']
     dashboard_projects=[]
     deadline_alerts=[]
+    github_links={link.project_id:link for link in db.scalars(
+        select(GitHubRepoLink).where(GitHubRepoLink.project_id.in_([p.id for p in projects]))).all()} if projects else {}
+    github_enabled=bool(settings.github_allowed_owners.strip())
     for p in projects:
         spec=project_spec(db,p.id)
-        for warning in workflow_alerts(get_stages(db,p.id)):
+        mode=project_mode(spec.get('project_type'), github_linked=bool(github_links.get(p.id)))
+        alerts=workflow_alerts(get_stages(db,p.id))
+        for warning in alerts:
             deadline_alerts.append({'project':p,'message':warning['text'],'days':warning['days']})
         counts={status: db.scalar(select(func.count(Task.id)).where(Task.project_id==p.id, Task.status==status)) or 0 for status in STATUS_LABELS}
-        dashboard_projects.append({'project':p,'spec':spec,'counts':counts,'open':counts['todo']+counts['working']+counts['waiting_user']+counts['testing']+counts['failed']})
+        link=github_links.get(p.id)
+        gh=github_connection_state(
+            link, github_enabled or not is_superadmin(u) or bool(link and link.last_synced_at))
+        fc_state=fresh_core_state(db,p.id) if mode=='wordpress' else {'kind':'unlinked'}
+        next_step=project_next_step(spec,counts,gh,alerts,mode=mode,
+                                   fresh_connected=fc_state['kind']=='synced')
+        overview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,175,
+                       'Obchodní cíl projektu zatím není popsán.')
+        dashboard_projects.append({
+            'project':p,'spec':spec,'counts':counts,'can_edit':can_edit_project(db,u,p),
+            'open':sum(counts.get(key,0) for key in ('todo','working','waiting_user','testing','failed')),
+            'goal_preview':overview,'has_goal':bool(spec.get('business_goal') or spec.get('purpose') or p.description),
+            'project_mode':mode,'fresh_core_status':fc_state,'github_status':gh,'github_link':link,
+            'next_step':next_step,
+        })
+    # Give projects awaiting a decision or a fix priority over recent but idle ones.
+    dashboard_projects.sort(key=lambda item: (
+        0 if item['counts'].get('waiting_user', 0) or item['counts'].get('failed', 0) else 1,
+        -item['counts'].get('waiting_user', 0),
+        -item['counts'].get('failed', 0),
+    ))
     deadline_alerts.sort(key=lambda x:x['days'])
-    dashboard_totals={'open':sum(x['open'] for x in dashboard_projects),'testing':sum(x['counts'].get('testing',0) for x in dashboard_projects)}
+    dashboard_totals={
+        'open':sum(x['open'] for x in dashboard_projects),
+        'testing':sum(x['counts'].get('testing',0) for x in dashboard_projects),
+        'waiting_user':sum(x['counts'].get('waiting_user',0) for x in dashboard_projects),
+        'failed':sum(x['counts'].get('failed',0) for x in dashboard_projects),
+    }
     fresh_requests=[]; fresh_error=''
     if fresh_key.configured():
         try:
@@ -339,23 +411,51 @@ def dashboard(request: Request, db: Session=Depends(get_db)):
             fresh_requests=fresh_key.pending_link_requests(u)
         except Exception as exc:
             fresh_error=str(exc)
-    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error))
+    archived_management={p.id:can_manage_project(db,u,p) for p in archived_projects}
+    return templates.TemplateResponse('dashboard.html', ctx(request,u,projects=projects,archived_projects=archived_projects,archived_management=archived_management,dashboard_projects=dashboard_projects,dashboard_totals=dashboard_totals,deadline_alerts=deadline_alerts[:15],fresh_key_requests=fresh_requests,fresh_key_error=fresh_error,
+        github_configured=github_enabled,can_import_portfolio=is_superadmin(u)))
 
 @app.post('/projects')
-def create_project(request: Request, name: str=Form(...), description: str=Form(''), db: Session=Depends(get_db)):
+def create_project(request: Request, name: str=Form(...), description: str=Form(''),
+                   project_mode_choice: str=Form('general'), website_url: str=Form(''),
+                   db: Session=Depends(get_db)):
     u=require_user(request,db)
-    p=Project(owner_id=u.id,name=name.strip(),description=description.strip() or None,updated_at=datetime.utcnow())
+    if project_mode_choice not in ('wordpress','github','general'):
+        raise HTTPException(400, 'Neznámý typ projektu.')
+    title=(name or '').strip()[:255]
+    if not title:
+        raise HTTPException(400, 'Doplň název projektu.')
+    try:
+        site=validate_site_url(website_url) if project_mode_choice=='wordpress' else ''
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)[:250])
+    p=Project(owner_id=u.id,name=title,description=description.strip() or None,updated_at=datetime.utcnow())
     db.add(p); db.flush()
+    save_project_spec_value(db,p.id,'project_type',selected_project_type(project_mode_choice))
+    if site:
+        db.add(ProjectMemory(project_id=p.id,kind='wordpress_site_url',
+                             title='Adresa webu (zadána uživatelem, neověřená)',
+                             content=site, verified=False))
     c=Chat(project_id=p.id,title='Hlavní chat')
-    db.add(c); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_created',detail='Projekt vytvořen.'))
-    db.commit(); return RedirectResponse(f'/projects/{p.id}',303)
+    db.add(c); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_created',
+                                    detail='Projekt vytvořen ('+project_mode_choice+').'))
+    db.commit()
+    guide={'wordpress':'wp-start','github':'github-start','general':'project-start'}[project_mode_choice]
+    return RedirectResponse(f'/projects/{p.id}?view=chat&guide={guide}',303)
 
 @app.get('/projects/{project_id}', response_class=HTMLResponse)
 def project_view(request: Request, project_id: int, chat_id: int|None=None, view: str='chat', db: Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id)
-    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing'}
+    allowed_views={'chat','tasks','development','outputs','history','files','settings','docs','components','releases','testing','github','website','manage'}
     if view not in allowed_views: view='chat'
-    selectable_projects=db.scalars(select(Project).where(or_(Project.owner_id==u.id, Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id)))).order_by(Project.name)).all()
+    if view == 'github':
+        return RedirectResponse(f'/projects/{p.id}/github', 303)
+    selectable_query=select(Project)
+    if not is_superadmin(u):
+        selectable_query=selectable_query.where(or_(
+            Project.owner_id==u.id,
+            Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id==u.id))))
+    selectable_projects=db.scalars(selectable_query.order_by(Project.name)).all()
     chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==False).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
     archived_chats=db.scalars(select(Chat).where(Chat.project_id==p.id, Chat.is_archived==True).order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
     if not chats:
@@ -397,7 +497,36 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     spec=project_spec(db,p.id)
     stages=get_stages(db,p.id)
     stage_alerts=workflow_alerts(stages)
+    github_link=db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    github_status=github_connection_state(
+        github_link, bool(settings.github_allowed_owners.strip()) or
+        not is_superadmin(u) or bool(github_link and github_link.last_synced_at))
+    core_state=fresh_core_state(db,p.id)
+    project_focus=project_next_step(spec,task_counts,github_status,stage_alerts,
+        mode=project_mode(spec.get('project_type'),github_linked=bool(github_link)),
+        fresh_connected=core_state['kind'] == 'synced')
+    project_goal_preview=brief(spec.get('business_goal') or spec.get('purpose') or p.description,
+                               220, 'Prober s Karlem, čeho chceš dosáhnout.')
+    project_mode_name=project_mode(spec.get('project_type'), github_linked=bool(github_link))
+    site_record=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == p.id, ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    website_url=site_record.content if site_record else ''
+    project_journey=journey_for_project(
+        project_id=p.id, mode=project_mode_name, github=github_status,
+        has_business_goal=bool(spec.get('business_goal') or spec.get('purpose')),
+        has_site_url=bool(website_url),
+        can_import=is_superadmin(u), fresh_connected=core_state['kind'] == 'synced',
+    )
+    project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
+    project_has_activity = bool(
+        any(str(spec.get(key) or '').strip() for key in
+            ('purpose', 'business_goal', 'functional_goal', 'project_scope', 'project_plan'))
+        or any(t.status != 'archived' for t in tasks)
+        or any(st.status != 'planned' for st in stages)
+        or document_memories or outputs
+    )
     capabilities=[
         {'name':'Projektový chat','status':'active','label':'Aktivní'},
         {'name':'Více chatů a archiv','status':'active','label':'Aktivní'},
@@ -413,18 +542,164 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
     ]
     return templates.TemplateResponse('project.html', ctx(request,u,project=p,selectable_projects=selectable_projects,chats=chats,archived_chats=archived_chats,active_chat=active,messages=messages,can_continue=bool(messages and messages[-1].role=='assistant' and not proposals and not (messages[-1].content or '').startswith('[[ENGINE_UNAVAILABLE]]')),reply_may_be_truncated=bool(messages and messages[-1].role=='assistant' and likely_truncated(messages[-1].content)),tasks=tasks,task_counts=task_counts,files=files,current_files=current_files,outputs=outputs,file_map=file_map,memories=memories,manifests=manifests,events=events,library_count=library_count,capabilities=capabilities,view=view,
         project_role=role,project_role_label=ROLE_LABELS.get(role,role),can_edit=can_edit_project(db,u,p),can_manage=can_manage_project(db,u,p),
+        github_status=github_status,github_link=github_link,project_focus=project_focus,
+        project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
+        project_mode=project_mode_name,project_journey=project_journey,
+        website_url=website_url,core_state=core_state,
+        can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
         notice=request.query_params.get('notice',''),notice_url=request.query_params.get('notice_url',''),notice_label=request.query_params.get('notice_label','Otevřít'),error=request.query_params.get('error','')))
+
+@app.post('/projects/{project_id}/mode')
+def choose_existing_project_mode(request: Request, project_id: int,
+                                 project_mode_choice: str=Form(...),
+                                 db: Session=Depends(get_db)):
+    """Assign an existing project a user-chosen journey; preserve all other data."""
+    u=require_user(request, db)
+    p=get_project_or_404(db, u, project_id, write=True)
+    if project_mode_choice not in ('wordpress', 'github', 'general'):
+        raise HTTPException(400, 'Neznámý typ projektu.')
+    save_project_spec_value(db, p.id, 'project_type', selected_project_type(project_mode_choice))
+    p.updated_at=datetime.utcnow()
+    db.add(ProjectEvent(project_id=p.id, user_id=u.id, event_type='project_mode_selected',
+                        detail='Uživatel zvolil zaměření projektu: ' + project_mode_choice))
+    db.commit()
+    return RedirectResponse(f'/projects/{p.id}?view=development', 303)
+
+
+@app.post('/projects/{project_id}/website-url')
+def save_declared_website_url(request: Request, project_id: int,
+                              website_url: str=Form(...), db: Session=Depends(get_db)):
+    """Store declared WordPress URL without contacting the given host."""
+    u=require_user(request, db)
+    p=get_project_or_404(db, u, project_id, manage=True)
+    spec=project_spec(db, p.id)
+    if project_mode(spec.get('project_type')) != 'wordpress':
+        raise HTTPException(400, 'Adresa webu patří k WordPress projektu.')
+    if fresh_core_state(db, p.id)['has_key']:
+        return RedirectResponse(
+            f'/projects/{p.id}?view=website&error=' +
+            quote('Nejdříve odpoj stávající Fresh Core. Přístupový klíč zůstává vázán na ověřený web.'), 303
+        )
+    try:
+        url=validate_site_url(website_url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)[:250])
+    if not url:
+        raise HTTPException(400, 'Zadej adresu WordPress webu.')
+    existing=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == p.id, ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    if existing:
+        existing.content=url
+        existing.verified=False
+    else:
+        db.add(ProjectMemory(project_id=p.id, kind='wordpress_site_url',
+                             title='Adresa webu (zadána uživatelem, neověřená)',
+                             content=url, verified=False))
+    p.updated_at=datetime.utcnow()
+    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='wordpress_url_declared',
+                        detail='Uživatel uvedl adresu WordPress webu (neověřeno).'))
+    db.commit()
+    return RedirectResponse(f'/projects/{p.id}?view=website&notice=' +
+                            quote('Adresu webu jsem uložil; propojení se zatím neověřilo.'), 303)
+
+
+# Fresh Core 0.7.8 – only authenticated READ; no WordPress writes.
+@app.post('/projects/{project_id}/fresh-core/connect')
+def fresh_core_connect(request: Request, project_id: int,
+                       access_key: str=Form(...), db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    spec=project_spec(db, project.id)
+    if project_mode(spec.get('project_type'))!='wordpress':
+        raise HTTPException(400, 'Připojení Fresh Core patří k WordPress projektu.')
+    site=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == project.id,
+        ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    if not site or not site.content:
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote('Nejdříve ulož adresu svého WordPress webu.'), 303)
+    try:
+        snapshot=connect_readonly(db, project.id, user.id, site.content, access_key)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_connect_failed', detail='READ handshake failed (no secrets).'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' + quote(str(exc)[:240]), 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Spojení se podařilo ověřit. Karel má nový čtecí snímek WordPressu (bez zápisu).'), 303)
+
+
+@app.post('/projects/{project_id}/fresh-core/refresh')
+def fresh_core_refresh(request: Request, project_id: int,
+                       db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, write=True)
+    if project.status == 'archived':
+        raise HTTPException(409, 'Archivovaný projekt nesynchronizujeme.')
+    stored=fresh_core_state(db, project.id)
+    # Always target the host that was previously authenticated, not an editable
+    # user URL. This prevents sending a stored key to a changed destination.
+    trusted_site=(stored['snapshot'] or {}).get('site_url', '')
+    if not trusted_site:
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote('Nejdříve dokonči propojení Fresh Core.'), 303)
+    try:
+        refresh_readonly(db, project.id, user.id, trusted_site)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_refresh_failed', detail='READ refresh failed (no secrets).'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote(str(exc)[:240]), 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Aktuální stav WordPressu byl znovu načten a bezpečně uložen.'), 303)
+
+
+@app.post('/projects/{project_id}/fresh-core/disconnect')
+def fresh_core_disconnect(request: Request, project_id: int,
+                          confirmed: str=Form(''), db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    if confirmed != 'disconnect':
+        raise HTTPException(400, 'Odpojení musíš výslovně potvrdit.')
+    disconnect_readonly(db, project.id, user.id)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Fresh Core byl od Karla odpojen. Klíč odvolej také v administraci WordPressu.'),303)
+
 
 @app.post('/projects/{project_id}/edit')
 def edit_project(request:Request, project_id:int, name:str=Form(...), description:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
-    p.name=name.strip() or p.name
-    p.description=description.strip() or None
+    new_name=(name or '').strip()
+    new_description=(description or '').strip()
+    if not new_name:
+        return RedirectResponse(f'/projects/{p.id}?view=manage&error='+
+                                quote('Název projektu nesmí být prázdný.'),303)
+    if len(new_name)>255 or len(new_description)>2000:
+        return RedirectResponse(f'/projects/{p.id}?view=manage&error='+
+                                quote('Název nebo popis projektu překračuje povolenou délku.'),303)
+    before=p.name
+    p.name=new_name
+    p.description=new_description or None
     p.updated_at=datetime.utcnow()
-    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_updated',detail='Základní informace projektu byly upraveny.'))
+    db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_updated',
+                        detail='Údaje projektu byly upraveny; název změněn.' if before!=new_name
+                               else 'Popis nebo základní údaje projektu byly upraveny.'))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?view=settings&notice='+quote('Projekt jsem uložil.'),303)
+    return RedirectResponse(f'/projects/{p.id}?view=manage&notice='+
+                            quote('Název a popis projektu byly uloženy.'),303)
 
 @app.post('/projects/{project_id}/spec')
 def edit_project_spec(request:Request, project_id:int, purpose:str=Form(''), project_type:str=Form(''), business_goal:str=Form(''), functional_goal:str=Form(''), project_scope:str=Form(''), project_deadline:str=Form(''), project_plan:str=Form(''), db:Session=Depends(get_db)):
@@ -516,38 +791,58 @@ def archive_project(request:Request, project_id:int, archived:int=Form(1), db:Se
     p.status='archived' if bool(archived) else 'active'; p.updated_at=datetime.utcnow()
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='project_archived' if p.status=='archived' else 'project_restored',detail=p.name))
     db.commit()
-    return RedirectResponse('/?notice='+quote('Projekt byl archivován.' if p.status=='archived' else 'Projekt byl obnoven.'),303)
+    return RedirectResponse(
+        f'/projects/{p.id}?view=manage&notice='+
+        quote('Projekt byl přesunut do archivu.' if p.status=='archived' else 'Projekt byl obnoven z archivu.'),303)
 
 @app.post('/projects/{project_id}/delete')
-def delete_project(request:Request, project_id:int, db:Session=Depends(get_db)):
+def delete_project(request:Request, project_id:int, confirmation_name:str=Form(''),
+                   db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,manage=True)
     if (p.status or 'active')!='archived':
         return redirect_project(p.id,error='Projekt lze smazat až po archivaci.')
-    # Smazání je úmyslně dvoukrokové: nejdřív archivace, potom trvalé odstranění.
-    chats=db.scalars(select(Chat).where(Chat.project_id==p.id)).all(); chat_ids=[c.id for c in chats]
+    if confirmation_name.strip() != p.name:
+        return redirect_project(p.id,error='Pro trvalé smazání opiš přesný název projektu.')
+    # Every FK referencing projects.id must be deleted in a single DB
+    # transaction, including stages and GitHub link introduced after v1.
+    chats=db.scalars(select(Chat).where(Chat.project_id==p.id)).all()
+    chat_ids=[c.id for c in chats]
     if chat_ids:
-        for msg in db.scalars(select(Message).where(Message.chat_id.in_(chat_ids))).all(): db.delete(msg)
+        for msg in db.scalars(select(Message).where(Message.chat_id.in_(chat_ids))).all():
+            db.delete(msg)
     files=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id)).all()
+    file_names=[row.stored_name for row in files]
     for pf in files: pf.parent_file_id=None
     db.flush()
-    for pf in files:
-        try: absolute_path(pf.stored_name).unlink(missing_ok=True)
-        except Exception: pass
-        db.delete(pf)
-    for model in (Task, ProjectMemory, ProjectEvent, ProjectMember, ProjectInvitation):
-        for row in db.scalars(select(model).where(model.project_id==p.id)).all(): db.delete(row)
+    for pf in files: db.delete(pf)
+    db.flush()
+    for model in (Task, ProjectMemory, ProjectEvent, ProjectMember, ProjectInvitation,
+                  ProjectStage, GitHubRepoLink):
+        for row in db.scalars(select(model).where(model.project_id==p.id)).all():
+            db.delete(row)
     for c in chats: db.delete(c)
-    db.delete(p); db.commit()
+    db.delete(p)
+    # Only after a successful commit may the physical files be removed.
+    db.commit()
+    for stored_name in file_names:
+        try: absolute_path(stored_name).unlink(missing_ok=True)
+        except (OSError, ValueError): pass
     try: shutil.rmtree(settings.uploads_dir / str(project_id), ignore_errors=True)
-    except Exception: pass
+    except OSError: pass
     return RedirectResponse('/?notice='+quote('Projekt byl trvale smazán.'),303)
 
 @app.post('/projects/{project_id}/chat/{chat_id}/send')
-async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), db:Session=Depends(get_db)):
+async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), return_view:str=Form('chat'), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
-    if not message.strip() and not attachments: return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}',303)
+    safe_views = {'chat','docs','development','tasks','github','website','manage','settings','testing','releases','outputs','history','files','components'}
+    if return_view not in safe_views:
+        return_view = 'chat'
+    destination = (f'/projects/{p.id}/github?chat_id={c.id}' if return_view == 'github'
+                   else f'/projects/{p.id}?view={return_view}&chat_id={c.id}')
+    anchor = '#bottom' if return_view == 'chat' else '#karel-assistant'
+    if not message.strip() and not attachments: return RedirectResponse(destination,303)
     user_msg=Message(chat_id=c.id,user_id=u.id,role='user',content=message.strip() or '[Příloha bez textu]')
     db.add(user_msg); db.flush()
     attachment_meta=[]
@@ -568,7 +863,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=action_result_text(batch)))
             db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_batch_confirmed',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
             c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-            return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}&notice='+quote(action_result_text(batch))+'#bottom',303)
+            return RedirectResponse(destination+'&notice='+quote(action_result_text(batch))+anchor,303)
 
     # A new non-confirmation message means the user continued the discussion instead of
     # approving the current proposal. Close that proposal and keep the decision in history.
@@ -586,14 +881,14 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
         db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=reply))
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='orchestrator_write_planned',detail=titles[:1800]))
         c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-        return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+        return RedirectResponse(destination+anchor,303)
 
     orchestration=orchestrate(db,p,c,u,user_msg.content,current_message_id=user_msg.id)
     if orchestration.mode == 'direct' and orchestration.direct_response is not None and not attachment_meta:
         db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=orchestration.direct_response))
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='orchestrator_direct',detail=json.dumps({'tools':orchestration.tools_used},ensure_ascii=False)))
         c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.commit()
-        return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+        return RedirectResponse(destination+anchor,303)
     source_blocks=resolve_message_sources(db,p,u,user_msg.content,APP_VERSION)
     tool_blocks=list(orchestration.context_blocks or [])
     if source_blocks:
@@ -612,6 +907,12 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             extracted,reports=attachments_context(recent_files)
             attachment_sources.append('STARŠÍ PŘÍLOHY Z TOHOTO PROJEKTU, přečtené na výslovnou žádost uživatele:\n'+extracted)
     system=build_context(db,p,c,u,query=user_msg.content,extra_sources=attachment_sources+tool_blocks) + "\n\n" + workflow_context(get_stages(db,p.id))
+    if return_view != 'chat':
+        labels = {'docs':'Zadání a obchodní cíle','github':'GitHub','development':'Pipeline projektu',
+                  'tasks':'Úkoly projektu','settings':'Nastavení projektu','testing':'Testování',
+                  'releases':'Release','outputs':'Výstupy','history':'Historie',
+                  'files':'Soubory','components':'Komponenty'}
+        system += "\nKONTEXT UI: dotaz byl položen na obrazovce " + labels.get(return_view,return_view) + ". Neodvozuj konkrétní data, která nebyla skutečně načtena."
     try:
         raw=await engine_chat(system, user_msg.content, attachment_meta)
         visible=apply_state(db,p.id,c.id,raw,source_message_id=user_msg.id,allow_actions=not is_complex_project_brief(user_msg.content))
@@ -622,7 +923,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     ai_msg=Message(chat_id=c.id,user_id=None,role='assistant',content=visible or 'Hotovo.')
     db.add(ai_msg); c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow(); db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='chat_message',detail=f'Zpráva v chatu {c.title}'))
     db.commit()
-    return RedirectResponse(f'/projects/{p.id}?chat_id={c.id}#bottom',303)
+    return RedirectResponse(destination+anchor,303)
 
 @app.post('/projects/{project_id}/chat/{chat_id}/continue')
 async def continue_assistant_message(request:Request,project_id:int,chat_id:int,db:Session=Depends(get_db)):
@@ -779,6 +1080,7 @@ def dismiss_action(request:Request, project_id:int, action_id:int, db:Session=De
 @app.post('/projects/{project_id}/tasks')
 def add_task(request:Request, project_id:int, chat_id:int=Form(...), title:str=Form(...), description:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
+    require_chat_in_project(db,p.id,chat_id)
     db.add(Task(project_id=p.id,chat_id=chat_id,title=title.strip(),description=description.strip() or None,status='todo')); db.commit()
     return RedirectResponse(f'/projects/{p.id}?chat_id={chat_id}',303)
 
@@ -818,6 +1120,44 @@ def task_delete(request:Request, task_id:int, db:Session=Depends(get_db)):
     db.commit()
     return RedirectResponse(f'/projects/{p.id}?view=tasks&notice='+quote('Archivovaný úkol byl smazán.'),303)
 
+@app.post('/files/{file_id}/archive')
+def archive_project_file(request:Request, file_id:int, archived:int=Form(1),
+                         db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    pf=db.get(ProjectFile,file_id)
+    if not pf: raise HTTPException(404)
+    project=get_project_or_404(db,u,pf.project_id,write=True)
+    pf.status='archived' if archived else 'current'
+    db.add(ProjectEvent(project_id=project.id,user_id=u.id,
+                        event_type='file_archived' if archived else 'file_restored',
+                        detail='FILE-'+str(pf.id)+': '+pf.name[:120]))
+    db.commit()
+    return RedirectResponse(f'/projects/{project.id}?view=files',303)
+
+
+@app.post('/files/{file_id}/delete')
+def delete_archived_project_file(request:Request, file_id:int,
+                                 db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    pf=db.get(ProjectFile,file_id)
+    if not pf: raise HTTPException(404)
+    project=get_project_or_404(db,u,pf.project_id,write=True)
+    if pf.status != 'archived':
+        raise HTTPException(409,'Soubor lze smazat až po archivaci.')
+    for row in db.scalars(select(ProjectFile).where(
+        ProjectFile.parent_file_id==pf.id)).all():
+        row.parent_file_id=None
+    stored_name=pf.stored_name
+    filename=pf.name[:120]
+    db.delete(pf)
+    db.add(ProjectEvent(project_id=project.id,user_id=u.id,
+                        event_type='file_deleted',detail=filename))
+    db.commit()
+    try: absolute_path(stored_name).unlink(missing_ok=True)
+    except (OSError, ValueError): pass
+    return RedirectResponse(f'/projects/{project.id}?view=files',303)
+
+
 @app.get('/files/{file_id}')
 def download_file(request:Request,file_id:int,db:Session=Depends(get_db)):
     u=require_user(request,db); f=db.get(ProjectFile,file_id)
@@ -830,7 +1170,10 @@ def download_file(request:Request,file_id:int,db:Session=Depends(get_db)):
 @app.post('/projects/{project_id}/bundle')
 def bundle_files(request:Request,project_id:int,chat_id:int=Form(...),db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
-    src=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id, ProjectFile.status=='current').order_by(ProjectFile.id)).all()
+    require_chat_in_project(db,p.id,chat_id)
+    # Never include previously generated ZIP outputs in another exported bundle.
+    src=db.scalars(select(ProjectFile).where(ProjectFile.project_id==p.id,
+        ProjectFile.status=='current', ProjectFile.kind!='output').order_by(ProjectFile.id)).all()
     if not src: return RedirectResponse(f'/projects/{p.id}?chat_id={chat_id}',303)
     target,size=create_bundle(p.id,src,f'{p.name.lower().replace(" ","-")}-files.zip')
     stored=f'{p.id}/{target.name}'
@@ -1048,7 +1391,7 @@ def admin_console(request:Request, db:Session=Depends(get_db)):
         'files': db.scalar(select(func.count(ProjectFile.id))) or 0,
         'library': db.scalar(select(func.count(LibraryItem.id))) or 0,
     }
-    return templates.TemplateResponse('admin.html',ctx(request,u,users=users,stats=stats,system=_system_stats(),version=APP_VERSION,db_driver=engine.url.drivername,manifest_url='/manifest.json',brain=load_brain()))
+    return templates.TemplateResponse('admin.html',ctx(request,u,users=users,stats=stats,system=_system_stats(),version=APP_VERSION,db_driver=engine.url.drivername,manifest_url='/manifest.json',brain=load_brain(),security_checks=collect_security_checks(settings, bootstrap_state())))
 
 @app.post('/admin/brain')
 async def admin_brain_save(request:Request, db:Session=Depends(get_db)):
@@ -1114,7 +1457,7 @@ async def library_add(request:Request,title:str=Form(...),category:str=Form('oth
 def library_edit(request:Request,item_id:int,title:str=Form(...),category:str=Form('other'),description:str=Form(''),db:Session=Depends(get_db)):
     u=require_user(request,db)
     item=db.get(LibraryItem,item_id)
-    if not item or (item.owner_id is not None and item.owner_id!=u.id): raise HTTPException(404)
+    if not item or item.owner_id != u.id: raise HTTPException(404)
     item.title=title.strip() or item.title
     item.category=category.strip()[:80] or item.category
     item.description=description.strip() or None
@@ -1133,10 +1476,14 @@ def library_download(request:Request,item_id:int,db:Session=Depends(get_db)):
 def library_delete(request:Request,item_id:int,db:Session=Depends(get_db)):
     u=require_user(request,db); item=db.get(LibraryItem,item_id)
     if not item or item.owner_id!=u.id: raise HTTPException(404)
-    if item.stored_name:
-        try: absolute_library_path(item.stored_name).unlink(missing_ok=True)
-        except Exception: pass
-    db.delete(item); db.commit(); return RedirectResponse('/library',303)
+    stored_name=item.stored_name
+    db.delete(item)
+    db.commit()
+    # Do not destroy the backing file before the DB deletion was committed.
+    if stored_name:
+        try: absolute_library_path(stored_name).unlink(missing_ok=True)
+        except (OSError, ValueError): pass
+    return RedirectResponse('/library',303)
 
 @app.post('/projects/{project_id}/manifest')
 def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Session=Depends(get_db)):
@@ -1145,11 +1492,8 @@ def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Se
     if not (url.startswith('https://') or url.startswith('http://')):
         return redirect_project(p.id,error='Manifest musí mít adresu začínající http:// nebo https://.')
     try:
-        with httpx.Client(timeout=15,follow_redirects=True) as client:
-            r=client.get(url,headers={'User-Agent':'Karel/2.0 Manifest Reader'})
-            r.raise_for_status()
-            if len(r.content)>1024*1024: raise ValueError('Manifest je větší než 1 MB.')
-            data=r.json()
+        # Same HTTPS/allowlist/public-IP/redirect safeguards as chat source resolution.
+        data=fetch_public_manifest(url)
         body=json.dumps(data,ensure_ascii=False,indent=2)
         row=db.scalar(select(ProjectMemory).where(ProjectMemory.project_id==p.id,ProjectMemory.kind=='manifest').order_by(ProjectMemory.id.desc()))
         if row:
@@ -1164,3 +1508,184 @@ def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Se
 @app.get('/engine/status')
 async def engine_status(request:Request,db:Session=Depends(get_db)):
     require_user(request,db); ok,detail=await engine_health(); return JSONResponse({'ok':ok,'detail':detail})
+
+
+# GitHub P1 – manual read-only repo snapshot, no writes to external GitHub.
+@app.get('/projects/{project_id}/github', response_class=HTMLResponse)
+def github_project_page(request: Request, project_id: int, chat_id: int | None = None, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    p = get_project_or_404(db, u, project_id)
+    link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    try:
+        snap = decode_snapshot(link.snapshot_json) if link and link.snapshot_json else {}
+    except (TypeError, ValueError):
+        snap = {}
+    task_counts = {status: db.scalar(select(func.count(Task.id)).where(
+        Task.project_id == p.id, Task.status == status)) or 0 for status in STATUS_LABELS}
+    chats = db.scalars(select(Chat).where(Chat.project_id == p.id, Chat.is_archived == False)
+                       .order_by(Chat.updated_at.desc(), Chat.id.desc())).all()
+    active_chat = next((c for c in chats if c.id == chat_id), chats[0] if chats else None)
+    recent_messages = (db.scalars(select(Message).where(Message.chat_id == active_chat.id)
+                       .order_by(Message.id.desc()).limit(6)).all()[::-1] if active_chat else [])
+    gh_status = github_connection_state(link, True)  # Every owner may read public GitHub repos.
+    spec=project_spec(db,p.id)
+    mode=project_mode(spec.get('project_type'),github_linked=bool(link))
+    journey=journey_for_project(project_id=p.id,mode=mode,github=gh_status,
+        has_business_goal=bool(spec.get('business_goal') or spec.get('purpose')),
+        has_site_url=False,can_import=is_superadmin(u))
+    return templates.TemplateResponse('github.html', ctx(
+        request, u, project=p, view='github', link=link, snapshot=snap,
+        github_status=gh_status,project_mode=mode,project_journey=journey,
+        task_counts=type('TaskCounts', (), task_counts)(),
+        active_chat=active_chat, recent_messages=recent_messages,
+        can_edit=can_edit_project(db, u, p),
+        can_manage=can_manage_project(db, u, p),
+        github_allowed=True,
+        can_import_portfolio=is_superadmin(u),
+        notice=request.query_params.get('notice', '')[:300],
+        error=request.query_params.get('error', '')[:300],
+    ))
+
+
+@app.post('/projects/{project_id}/github/sync')
+def github_project_sync(request: Request, project_id: int,
+                        repository: str = Form(...), db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    p = get_project_or_404(db, u, project_id, manage=True)
+    if p.status == 'archived':
+        raise HTTPException(409, 'Archivovaný projekt nesynchronizujeme.')
+    link = db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id == p.id))
+    admin_private_mode = bool(is_superadmin(u) and settings.github_allowed_owners.strip())
+    try:
+        # Public projects of ordinary users use ANONYMOUS GitHub API requests;
+        # never authorize with the shared administrative private-repo token.
+        owner = (repository or '').strip().split('/', 1)[0]
+        allowed = settings.github_allowed_owners if admin_private_mode else owner
+        repo = validate_repository(repository, allowed)
+        occupied = db.scalar(select(GitHubRepoLink).join(
+            Project, Project.id == GitHubRepoLink.project_id
+        ).where(
+            Project.owner_id == p.owner_id,
+            func.lower(GitHubRepoLink.repository_full_name) == repo.lower(),
+            GitHubRepoLink.project_id != p.id))
+        if occupied:
+            raise GitHubSyncError('Tento repozitář již používáš v jiném vlastním projektu.')
+        if not admin_private_mode and link and link.last_synced_at and (
+            link.repository_full_name.lower() == repo.lower()
+        ) and (datetime.utcnow()-link.last_synced_at).total_seconds() < 300:
+            raise GitHubSyncError('GitHub byl načten před chvílí. Další obnovu můžeš spustit po pěti minutách.')
+        with GitHubReader(token=settings.github_read_token if admin_private_mode else '') as reader:
+            snapshot = reader.snapshot(repo, allowed)
+        if not admin_private_mode and snapshot.get('private'):
+            raise GitHubSyncError(
+                'Soukromé repozitáře vyžadují samostatné autorizované připojení GitHub účtu.'
+            )
+    except GitHubSyncError as exc:
+        if link:
+            link.last_error = str(exc)[:350]
+            db.commit()
+        return RedirectResponse(
+            '/projects/' + str(p.id) + '/github?error=' + quote(str(exc)[:300]), 303
+        )
+    try:
+        upsert_snapshot(db, project_id=p.id, user_id=u.id, snapshot=snapshot)
+    except GitHubSnapshotCodecError as exc:
+        db.rollback()
+        return RedirectResponse('/projects/' + str(p.id) +
+                                '/github?error=' + quote(str(exc)[:250]), 303)
+    return RedirectResponse('/projects/' + str(p.id) +
+                            '/github?notice=' + quote('GitHub snímek byl načten; zdrojová Issues a Projects se nezměnila.'), 303)
+
+
+@app.post('/projects/{project_id}/github/disconnect')
+def github_project_disconnect(request: Request, project_id: int,
+                              confirmed: str=Form(''), db: Session=Depends(get_db)):
+    user=require_user(request,db)
+    project=get_project_or_404(db,user,project_id,manage=True)
+    if confirmed != 'disconnect':
+        raise HTTPException(400, 'Odpojení GitHubu musíš výslovně potvrdit.')
+    link=db.scalar(select(GitHubRepoLink).where(GitHubRepoLink.project_id==project.id))
+    if link:
+        repository=link.repository_full_name
+        db.delete(link)
+        db.add(ProjectEvent(project_id=project.id,user_id=user.id,
+                            event_type='github_disconnected',detail='Read-only cache disconnected: '+repository))
+        db.commit()
+    return RedirectResponse(
+        f'/projects/{project.id}/github?notice='+
+        quote('GitHub vazba a uložená čtecí data byly odstraněny z Karla. Repozitář na GitHubu zůstává beze změny.'),303)
+
+
+# GitHub project onboarding is user-facing; until per-user GitHub OAuth is
+# implemented, the shared-server-token import must remain superadmin-only.
+# Legacy /admin links are retained for safe backwards compatibility.
+@app.get('/github/import', response_class=HTMLResponse)
+@app.get('/admin/github-import', response_class=HTMLResponse)
+def github_import_preview(request: Request, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    if not is_superadmin(u):
+        raise HTTPException(403)
+    repositories = None
+    plan = []
+    truncated = False
+    error = ''
+    if request.query_params.get('discover') == '1' and settings.github_allowed_owners:
+        try:
+            with GitHubReader(token=settings.github_read_token) as reader:
+                repositories, truncated = discover_repositories(reader, settings.github_allowed_owners)
+            plan = prepare_import_plan(db, u.id, repositories)
+        except GitHubSyncError as exc:
+            error = str(exc)[:350]
+    csrf_token = URLSafeTimedSerializer(settings.secret, salt='karel-github-import-v1').dumps({'user_id': u.id})
+    projects = db.scalars(select(Project).where(Project.owner_id == u.id).order_by(Project.name)).all()
+    linked_project_ids = {item.project_id for item in db.scalars(select(GitHubRepoLink)).all()}
+    available_projects = [p for p in projects if p.id not in linked_project_ids]
+    return templates.TemplateResponse('github_import.html', ctx(
+        request, u, repositories=repositories, plan=plan, truncated=truncated,
+        error=error, csrf_token=csrf_token, has_token=bool(settings.github_read_token),
+        allowed_owners=settings.github_allowed_owners, available_projects=available_projects,
+        notice=request.query_params.get('notice', '')[:300],
+    ))
+
+
+@app.post('/github/import')
+@app.post('/admin/github-import')
+async def github_import_apply(request: Request, db: Session = Depends(get_db)):
+    u = require_user(request, db)
+    if not is_superadmin(u):
+        raise HTTPException(403)
+    form = await request.form()
+    signed = str(form.get('csrf_token') or '')
+    try:
+        payload = URLSafeTimedSerializer(settings.secret, salt='karel-github-import-v1').loads(
+            signed, max_age=600)
+    except BadSignature:
+        raise HTTPException(403, 'Formulář vypršel; načti aktuální náhled GitHubu.')
+    if payload.get('user_id') != u.id:
+        raise HTTPException(403)
+    if str(form.get('confirm') or '') != 'yes':
+        raise HTTPException(400, 'Import nebyl výslovně potvrzen.')
+    selected = [str(v) for v in form.getlist('repositories')]
+    if not selected:
+        return RedirectResponse('/github/import?notice=' + quote('Nic nebylo vybráno.'), 303)
+    if len(selected) > 75:
+        raise HTTPException(400, 'Zpracuj nejvýše 75 repozitářů v jedné dávce.')
+    try:
+        with GitHubReader(token=settings.github_read_token) as reader:
+            repositories, _ = discover_repositories(reader, settings.github_allowed_owners)
+        plan = prepare_import_plan(db, u.id, repositories)
+        mapping = {}
+        for repo in selected:
+            mapped = str(form.get('map_' + repo) or '').strip()
+            if mapped:
+                if not mapped.isdecimal():
+                    raise ValueError('Ruční mapování musí obsahovat platné ID projektu.')
+                mapping[repo] = int(mapped)
+        result = apply_import_plan(db, u.id, plan, selected, mapping=mapping)
+    except (GitHubSyncError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)[:350])
+    message = (f'Vytvořeno {result["created"]}, propojeno {result["attached"]}, '
+               f'již propojeno {result["linked"]}, vyžaduje kontrolu {result["skipped"]}. '
+               'Pro načtení Issues a PR spusť synchronizaci u jednotlivých projektů.')
+    return RedirectResponse('/github/import?notice=' + quote(message), 303)

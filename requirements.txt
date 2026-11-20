@@ -10,3 +10,4 @@ python-dotenv==1.0.1
 itsdangerous==2.2.0
 a2wsgi==1.10.8
 pypdf==5.4.0
+cryptography==44.0.3

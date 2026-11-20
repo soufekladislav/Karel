@@ -179,3 +179,11 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Karel runtime data: never commit customer files, database or generated artifacts.
+# Already tracked historical files require a separate reviewed remediation.
+/storage/
+/tmp/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3

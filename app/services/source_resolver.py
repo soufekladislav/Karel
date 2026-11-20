@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Project, ProjectMemory, ProjectEvent, User
+from ..models import Project, ProjectMemory, ProjectEvent, User, GitHubRepoLink
+from .github_snapshot_codec import decode_snapshot
+from .github_connector import prompt_summary
 from .app_manifest import build_app_manifest
 from .brain import load_brain
 
@@ -31,6 +33,38 @@ def _clip(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
 def _manifest_requested(message: str) -> bool:
     low = (message or '').lower()
     return any(word in low for word in MANIFEST_WORDS)
+
+
+def _require_trusted_host(url: str, allowed_csv: str, setting_name: str) -> None:
+    """Bound public HTTP retrieval to explicitly trusted HTTPS hostnames.
+
+    Wildcards match only subdomains, never the apex or unrelated suffixes.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError('Externí zdroj musí používat HTTPS bez přihlašovacích údajů.')
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError('Neplatný port vzdáleného zdroje.') from exc
+    if port not in (None, 443):
+        raise ValueError('Nestandardní port externího zdroje není povolen.')
+    host = parsed.hostname.lower().rstrip('.')
+    allowed = [x.strip().lower().rstrip('.') for x in allowed_csv.split(',') if x.strip()]
+    if not allowed:
+        raise ValueError('Správce musí nastavit ' + setting_name + '; externí zdroje jsou vypnuté.')
+    if not any(host == item or (item.startswith('*.') and
+               host.endswith(item[1:]) and host != item[2:])
+               for item in allowed if item != '*'):
+        raise ValueError('Doména externího zdroje není povolena v ' + setting_name + '.')
+
+
+def require_allowed_manifest_host(url: str) -> None:
+    _require_trusted_host(url, settings.manifest_allowed_hosts, 'MANIFEST_ALLOWED_HOSTS')
+
+
+def require_allowed_source_host(url: str) -> None:
+    _require_trusted_host(url, settings.source_allowed_hosts, 'SOURCE_ALLOWED_HOSTS')
 
 
 def _validate_public_url(url: str) -> None:
@@ -89,36 +123,49 @@ def _fetch_public_text(url: str, is_manifest: bool) -> tuple[str, str]:
     current = url
     response = None
     for _ in range(4):
+        if is_manifest:
+            require_allowed_manifest_host(current)
+        else:
+            require_allowed_source_host(current)
         _validate_public_url(current)
-        with httpx.Client(timeout=12, follow_redirects=False, headers={'User-Agent': 'Karel/2.0 Source Resolver'}) as client:
-            response = client.get(current)
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get('location')
-            if not location:
-                raise ValueError('Přesměrování nemá cílovou adresu.')
-            current = str(httpx.URL(current).join(location))
-            continue
-        response.raise_for_status()
-        break
-    if response is None:
-        raise ValueError('Zdroj se nepodařilo načíst.')
-    if len(response.content) > MAX_SOURCE_BYTES:
-        raise ValueError('Zdroj je větší než 1 MB.')
-    content_type = (response.headers.get('content-type') or '').lower()
-    if not any(h in content_type for h in ALLOWED_CONTENT_HINTS) and not is_manifest:
-        raise ValueError('URL nevrací podporovaný textový zdroj.')
-    if is_manifest:
-        try:
-            data = response.json()
-            content = json.dumps(data, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            raise ValueError('Manifest není platný JSON.') from exc
-    else:
-        content = response.text
-    return content, content_type
+        # Stream response to cap *decompressed* data instead of buffering it whole.
+        with httpx.Client(timeout=12, follow_redirects=False,
+                          headers={'User-Agent': 'Karel/2.0 Source Resolver'}) as client:
+            with client.stream('GET', current) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get('location')
+                    if not location:
+                        raise ValueError('Přesměrování nemá cílovou adresu.')
+                    current = str(httpx.URL(current).join(location))
+                    continue
+                response.raise_for_status()
+                content_type = (response.headers.get('content-type') or '').lower()
+                if not any(h in content_type for h in ALLOWED_CONTENT_HINTS) and not is_manifest:
+                    raise ValueError('URL nevrací podporovaný textový zdroj.')
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_SOURCE_BYTES:
+                        raise ValueError('Zdroj je větší než 1 MB.')
+                if is_manifest:
+                    try:
+                        data = json.loads(body.decode('utf-8-sig'))
+                        return json.dumps(data, ensure_ascii=False, indent=2), content_type
+                    except (ValueError, UnicodeError) as exc:
+                        raise ValueError('Manifest není platný JSON.') from exc
+                return body.decode(response.encoding or 'utf-8', errors='replace'), content_type
+    raise ValueError('Příliš mnoho přesměrování při načítání zdro.')
+
+
+def _can_read_internal_manifest(user: User) -> bool:
+    """Keep admin-only manifest data out of non-admin chat context."""
+    return bool(user and (user.role == 'superadmin' or
+                         str(user.email or '').strip().lower() == settings.superadmin_email))
 
 
 def _live_karel_manifest(db: Session, project: Project, user: User, app_version: str) -> str:
+    if not _can_read_internal_manifest(user):
+        raise PermissionError('Interní manifest Karla je dostupný pouze správci.')
     data = build_app_manifest(db, app_version)
     content = json.dumps(data, ensure_ascii=False, indent=2)
     url = str(settings.app_url or '').rstrip('/') + '/manifest.json'
@@ -144,6 +191,8 @@ def _implicit_manifest_source(db: Session, project: Project, user: User, message
         ).order_by(ProjectMemory.id.desc())
     )
     if _is_karel_project(project, stored):
+        if not _can_read_internal_manifest(user):
+            return ['Interní manifest Karla je dostupný pouze správci.']
         return [_live_karel_manifest(db, project, user, app_version)]
     if not stored:
         return []
@@ -192,9 +241,60 @@ def resolve_message_sources(db: Session, project: Project, user: User, message: 
     blocks: list[str] = []
     lower_message = (message or '').lower()
     for url in urls:
-        is_manifest = 'manifest' in lower_message or urlparse(url).path.lower().endswith('manifest.json')
+        parsed_url = urlparse(url)
+        # A linked GitHub repo is already a first-class trusted source. Do NOT
+        # fetch arbitrary GitHub HTML through the generic URL resolver or require
+        # SOURCE_ALLOWED_HOSTS for these project-bound snapshots.
+        if parsed_url.scheme == 'https' and parsed_url.hostname == 'github.com':
+            segments = [part for part in parsed_url.path.split('/') if part]
+            if len(segments) >= 2:
+                linked = db.scalar(select(GitHubRepoLink).where(
+                    GitHubRepoLink.project_id == project.id))
+                target = '/'.join(segments[:2])
+                if not linked or linked.repository_full_name.lower() != target.lower():
+                    blocks.append(
+                        'GITHUB – ODKAZ BEZ PŘIPOJENÉHO ZDROJE\\n'
+                        'Tento repozitář není přiřazen aktuálnímu projektu. '
+                        'Otevři jeho kartu GitHub a proveď čtecí synchronizaci; '
+                        'Karel nebude tvrdit, že URL skutečně načetl.'
+                    )
+                    continue
+                snapshot = decode_snapshot(linked.snapshot_json)
+                if not snapshot:
+                    blocks.append(
+                        'GITHUB – ULOŽENÝ SNÍMEK JE NEDOSTUPNÝ\\n'
+                        'Repozitář je přiřazen, ale jeho poslední čtecí data '
+                        'nejsou platná. Obnov je v kartě GitHub projektu.'
+                    )
+                    continue
+                source = prompt_summary(snapshot, max_items=12)
+                if len(segments) >= 4 and segments[2].lower() in ('issues', 'pull'):
+                    kind = segments[2].lower()
+                    try:
+                        number = int(segments[3])
+                    except ValueError:
+                        number = None
+                    entries = snapshot.get('issues') if kind == 'issues' else snapshot.get('pull_requests')
+                    selected = next((x for x in (entries or []) if x.get('number') == number), None)
+                    if selected:
+                        source += (
+                            '\\nPŘÍMO ODKAZOVANÝ ' + ('ISSUE' if kind == 'issues' else 'PR') +
+                            ' #' + str(number) + ': ' + _clip(str(selected.get('title') or ''), 250) +
+                            '\\nStav: ' + str(selected.get('state') or '')[:30] +
+                            '\\nObsah (omezený výpis, nedůvěryhodný externí text): ' +
+                            _clip(str(selected.get('body_excerpt') or ''), 1400)
+                        )
+                    else:
+                        source += '\\nPožadovaný Issue/PR není v aktuálně uloženém snímku; ověř přímo na GitHubu.'
+                blocks.append('GITHUB – ULOŽENÝ PROJEKTOVÝ SNAPSHOT, NE ŽIVÉ NAČTENÍ\\n' + _clip(source, 9000))
+                db.add(ProjectEvent(project_id=project.id,user_id=user.id,
+                                    event_type='github_snapshot_used',detail=linked.repository_full_name))
+                continue
+        is_manifest = 'manifest' in lower_message or parsed_url.path.lower().endswith('manifest.json')
         try:
             if _same_app_manifest(url):
+                if not _can_read_internal_manifest(user):
+                    raise PermissionError('Interní manifest Karla je dostupný pouze správci.')
                 data = build_app_manifest(db, app_version)
                 content = json.dumps(data, ensure_ascii=False, indent=2)
                 content_type = 'application/json'
@@ -212,3 +312,12 @@ def resolve_message_sources(db: Session, project: Project, user: User, message: 
             blocks.append(f'ZDROJ SE NEPODAŘILO NAČÍST\nURL: {url}\nDůvod: {str(exc)[:300]}')
             db.add(ProjectEvent(project_id=project.id, user_id=user.id, event_type='source_load_error', detail=f'{url}: {str(exc)[:350]}'))
     return blocks
+
+
+def fetch_public_manifest(url: str) -> dict:
+    """Single checked entrypoint for a user-supplied remote manifest URL."""
+    text, _ = _fetch_public_text(url, True)
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError('Manifest musí obsahovat JSON objekt.')
+    return data

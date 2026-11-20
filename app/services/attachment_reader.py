@@ -90,7 +90,13 @@ def _read_docx(data: bytes) -> str:
     with zipfile.ZipFile(BytesIO(data)) as zf:
         if 'word/document.xml' not in zf.namelist():
             raise ValueError('DOCX neobsahuje word/document.xml.')
-        xml=zf.read('word/document.xml')
+        entry=zf.getinfo('word/document.xml')
+        if entry.file_size > MAX_ARCHIVE_UNCOMPRESSED:
+            raise ValueError('Dokument obsahuje příliš velký rozbalený XML soubor.')
+        with zf.open(entry) as source:
+            xml=source.read(MAX_ARCHIVE_UNCOMPRESSED + 1)
+        if len(xml) > MAX_ARCHIVE_UNCOMPRESSED:
+            raise ValueError('Dokument přesahuje bezpečný limit rozbalení.')
     root=ET.fromstring(xml)
     ns='{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
     paras=[]

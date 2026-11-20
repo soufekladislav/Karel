@@ -9,6 +9,7 @@ class Settings:
     app_name = os.getenv('APP_NAME', 'Karel 2.0')
     app_url = os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')
     secret = os.getenv('APP_SECRET', 'change-me')
+    environment = os.getenv('KAREL_ENV', 'production' if app_url.startswith('https://') else 'development').strip().lower()
     database_url = os.getenv('DATABASE_URL', f"sqlite:///{BASE_DIR / 'storage/karel2.db'}")
     admin_email = os.getenv('ADMIN_EMAIL', '')
     admin_password = os.getenv('ADMIN_PASSWORD', '')
@@ -22,6 +23,13 @@ class Settings:
     engine_mode = os.getenv('FRESH_AI_ENGINE_MODE', 'fresh').lower()
     engine_timeout = int(os.getenv('FRESH_AI_ENGINE_TIMEOUT', '180'))
     engine_retries = int(os.getenv('FRESH_AI_ENGINE_RETRIES', '3'))
+    # Single-admin P1: read-only GitHub credential, never in DB or UI.
+    github_read_token = os.getenv('GITHUB_READ_TOKEN', '')
+    github_allowed_owners = os.getenv('GITHUB_ALLOWED_OWNERS', '')
+    fresh_core_vault_key = os.getenv('FRESH_CORE_VAULT_KEY', '')
+    fresh_core_allowed_hosts = os.getenv('FRESH_CORE_ALLOWED_HOSTS', '')
+    manifest_allowed_hosts = os.getenv('MANIFEST_ALLOWED_HOSTS', '').strip()
+    source_allowed_hosts = os.getenv('SOURCE_ALLOWED_HOSTS', '').strip()
     max_upload_mb = int(os.getenv('MAX_UPLOAD_MB', '100'))
     https_only = os.getenv('SESSION_HTTPS_ONLY', 'true').lower() in ('1','true','yes','on')
     storage_dir = BASE_DIR / 'storage'

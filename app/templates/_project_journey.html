@@ -1,0 +1,27 @@
+{# One reusable, truthful project journey; data come from server-side project_journey helper. #}
+<section class="karel-journey" aria-label="Cesta projektu">
+  <header class="karel-journey-head">
+    <div><div class="eyebrow">JAK SPOLU BUDEME PRACOVAT</div>
+      <h3>{{ project_journey.name }}</h3>
+      <p>{{ project_journey.detail }}</p>
+    </div>
+  </header>
+  <div class="karel-journey-steps">
+    {% for step in project_journey.steps %}
+    <article class="karel-journey-step {{ step.status }}">
+      <div class="karel-journey-index" aria-hidden="true">{% if step.status == 'done' %}✓{% else %}{{ loop.index }}{% endif %}</div>
+      <div class="karel-journey-step-body">
+        <div class="karel-journey-step-top">
+          <h4>{{ step.title }}</h4>
+          <span>{% if step.status=='done' %}Hotovo{% elif step.status=='next' %}Další krok{% else %}Připravujeme{% endif %}</span>
+        </div>
+        <p>{{ step.body }}</p>
+        {% if step.status != 'planned' %}
+        <a class="karel-text-link" href="{{ step.href }}" {% if step.href.startswith('https://') %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ step.action }} →</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <p class="karel-journey-footer">Zelené „Hotovo“ zobrazujeme jen u ověřených kroků. Kliknutí na instalační odkaz nepotvrzuje propojení webu; neschválené změny nikdy neprovádíme.</p>
+</section>

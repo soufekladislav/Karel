@@ -42,7 +42,11 @@ def create_bundle(project_id: int, files: list, output_name: str='project-files.
         for pf in files:
             src = absolute_path(pf.stored_name)
             if not src.exists(): continue
-            name = pf.name
+            # A user-controlled upload name must not become a ZIP traversal path.
+            name = Path(str(pf.name or 'attachment').replace('\\', '/')).name
+            name = ''.join('_' if ord(ch) < 32 or ord(ch) == 127 else ch for ch in name)
+            if name in ('', '.', '..'):
+                name = f'attachment-{pf.id}'
             if name in used:
                 name = f'{pf.id}_{name}'
             used.add(name)

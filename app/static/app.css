@@ -164,3 +164,483 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
 .chat-continuation button{border-color:#d9e3cf;background:#f7faf0;color:#3f640a;font-weight:700}
 .chat-continuation span{line-height:1.5}
 @media(max-width:760px){.chat-continuation{margin-left:12px}}
+
+
+/* Karel UX: six-screen navigation and persistent contextual assistant.
+   Deliberately additive; existing working forms, chat and project views remain intact. */
+.karel-primary-menu{gap:7px;margin-top:17px}
+.karel-primary-menu>a{min-height:49px;align-items:center;grid-template-columns:34px minmax(0,1fr);grid-template-rows:1fr;padding:9px 11px}
+.karel-primary-menu>a .karel-nav-icon{grid-row:1;display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#edf1e8;color:#53604d;font-size:10px;font-weight:800;letter-spacing:-.02em}
+.karel-primary-menu>a b{font-size:13px;line-height:1.3;font-weight:600;min-width:0}
+.karel-primary-menu>a.active .karel-nav-icon{background:#9ec415;color:#17200b}
+.karel-side-footer{display:grid;gap:8px}
+.karel-side-footer>a{font-size:12px}
+.project-v2 .content-view .view-head h2{font-size:25px;line-height:1.25}
+.project-v2 .content-view .view-head p,.project-v2 .content-view .fresh-detail-body p{font-size:13px;line-height:1.65}
+.project-v2 .content-view input,.project-v2 .content-view select,.project-v2 .content-view textarea{font-size:14px}
+.project-v2 .content-view label{font-size:13px}
+.project-v2 .content-view .fresh-summary,.project-v2 .content-view .workboard-card{font-size:13px}
+.project-v2 .project-app.with-context-chat{grid-template-columns:250px minmax(0,1fr) 330px}
+.project-v2 .project-app.with-context-chat .project-content{min-width:0;overflow-y:auto}
+.karel-workspace-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px 22px;border-bottom:1px solid #dde2da;background:#fff;position:sticky;top:0;z-index:5}
+.karel-workspace-tabs>a,.karel-workspace-tabs .karel-more summary{padding:8px 11px;border-radius:9px;color:#596158;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.karel-workspace-tabs>a:hover,.karel-workspace-tabs .karel-more summary:hover{background:#edf2e7}
+.karel-workspace-tabs>a.active{background:#ecf4d8;color:#32400b}
+.karel-workspace-tabs .karel-more{position:relative}
+.karel-workspace-tabs .karel-more>a{display:block;padding:8px 12px;font-size:12px;background:#fff}
+.karel-workspace-tabs .karel-more[open]{background:#fff;border-radius:10px;box-shadow:0 8px 20px rgba(0,0,0,.08)}
+.karel-quick-panel{display:flex;flex-direction:column;min-height:0;background:#fff;border-left:1px solid #dde2da;overflow:hidden}
+.karel-quick-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:18px 15px;border-bottom:1px solid #dde2da}
+.karel-quick-header strong,.karel-quick-header small{display:block}
+.karel-quick-header strong{font-size:15px}
+.karel-quick-header small{font-size:11px;color:#6f776f;margin-top:3px}
+.karel-quick-header>a{font-size:11px;font-weight:700;color:#557000;white-space:nowrap}
+.karel-quick-messages{flex:1;min-height:140px;overflow-y:auto;padding:13px 12px;background:#f6f8f5}
+.karel-quick-message{border:1px solid #dde2da;background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.karel-quick-message.from-user{background:#eef5dc}
+.karel-quick-message>b{display:block;color:#556a17;font-size:11px;margin-bottom:4px}
+.karel-quick-text,.karel-quick-text p,.karel-quick-empty,.karel-quick-pending{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.karel-quick-text p{margin:0 0 7px}
+.karel-quick-text p:last-child{margin-bottom:0}
+.karel-quick-pending{background:#f5f0e4;padding:9px 11px;border-radius:9px}
+.karel-quick-pending a{font-weight:700;text-decoration:underline}
+.karel-quick-form{padding:12px;background:#fff;border-top:1px solid #dde2da}
+.karel-quick-form textarea{font-size:13px;min-height:76px;resize:vertical}
+.karel-quick-form-actions{display:flex;justify-content:space-between;align-items:center;gap:7px;margin-top:8px}
+.karel-quick-form-actions span{font-size:10px;color:#6f776f}
+.karel-quick-readonly{padding:12px;font-size:12px;color:#6f776f}
+@media(max-width:1150px){
+  .project-v2 .project-app.with-context-chat{grid-template-columns:230px minmax(0,1fr)}
+  .project-v2 .project-app.with-context-chat .karel-quick-panel{grid-column:2;max-height:420px;border-top:1px solid #dde2da}
+  .project-page.project-v2{height:auto;min-height:100vh;overflow:visible}
+  .project-v2 .project-app.with-context-chat{height:auto;min-height:100vh}
+  .project-v2 .project-app.with-context-chat .project-sidebar{grid-row:1 / 3}
+}
+@media(max-width:760px){
+  .project-v2 .project-app.with-context-chat{display:block}
+  .project-v2 .project-app.with-context-chat .project-sidebar{display:none}
+  .project-v2 .project-app.with-context-chat .project-content{overflow:visible}
+  .karel-workspace-tabs{padding:10px;gap:3px;position:static;overflow-x:auto;flex-wrap:nowrap}
+  .karel-workspace-tabs>a,.karel-workspace-tabs .karel-more summary{font-size:11px;padding:8px}
+  .karel-quick-panel{min-height:350px;max-height:510px;margin:10px 10px 95px;border:1px solid #dde2da;border-radius:15px}
+  .karel-primary-menu>a b{font-size:13px}
+  .project-v2 .content-view .view-head h2{font-size:21px}
+}
+
+
+/* UX/P0 – portfolio and project: one factual status, one clear next step.
+   Scoped to Karel's current six-screen app; no replacement theme. */
+.karel-portfolio{max-width:1440px;margin:0 auto;padding-top:34px}
+.karel-page-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:22px}
+.karel-page-heading h1{font-size:clamp(28px,3vw,37px);line-height:1.2;margin:6px 0 9px}
+.karel-page-heading p,.karel-portfolio-toolbar p{margin:0;color:#627066;font-size:14px;line-height:1.65}
+.karel-page-heading>.btn{white-space:nowrap;margin-top:12px}
+.karel-portfolio-stats,.karel-github-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0 26px}
+.karel-portfolio-stats>div,.karel-github-metrics>div{display:flex;flex-direction:column;gap:3px;padding:20px 22px;border:1px solid #dce4d7;background:#fff;border-radius:15px;min-width:0}
+.karel-portfolio-stats strong,.karel-github-metrics strong{font-size:27px;line-height:1.3;font-weight:750;color:#243421;font-variant-numeric:tabular-nums}
+.karel-portfolio-stats span,.karel-github-metrics span{color:#657367;font-size:13px;line-height:1.5}
+.karel-portfolio-stats .needs-attention{border-color:#dfb78b;background:#fffaf3}
+.karel-attention-note{display:flex;align-items:baseline;gap:14px;padding:13px 16px;border-left:4px solid #ba801d;border-radius:10px;background:#fff6e7;color:#6d4811;font-size:13px;margin-bottom:20px;line-height:1.6}
+.karel-attention-note strong{white-space:nowrap}
+.karel-deadlines{border:1px solid #e0e5db;border-radius:12px;margin-bottom:24px;background:#fff}
+.karel-deadlines>summary,.karel-archive>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:14px;font-weight:650;padding:13px 17px;color:#2c3b28}
+.karel-deadlines>summary span{color:#687665;font-size:12px;font-weight:500}
+.karel-deadline-list{border-top:1px solid #e0e5db}
+.karel-deadline-list a{display:flex;justify-content:space-between;gap:16px;padding:11px 17px;border-bottom:1px solid #edf0e9;font-size:13px}
+.karel-deadline-list a.is-late{color:#983d26}
+.karel-deadline-list a:last-child{border-bottom:0}
+.karel-portfolio-section{margin-top:14px}
+.karel-portfolio-toolbar{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:16px}
+.karel-portfolio-toolbar h2{font-size:22px;line-height:1.3;margin:0 0 5px}
+.karel-project-search{display:flex;flex-direction:column;gap:6px;min-width:min(100%,280px);font-size:12px;color:#556354;font-weight:650}
+.karel-project-search input{border:1px solid #cad7c8;border-radius:10px;padding:11px 13px;background:#fff;color:#1f2d21;font:inherit;font-size:14px}
+.karel-project-search input:focus-visible,.karel-project-card a:focus-visible,.karel-github-connection a:focus-visible{outline:3px solid #9ec415;outline-offset:3px}
+.karel-project-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.karel-project-card{background:#fff;border:1px solid #dce3d7;border-radius:17px;padding:21px;min-width:0;display:flex;flex-direction:column;gap:16px;box-shadow:0 5px 20px rgba(28,48,24,.035)}
+.karel-project-card[hidden],.karel-search-empty[hidden]{display:none!important}
+.karel-project-card-head{display:flex;align-items:center;gap:12px;min-width:0}
+.karel-project-mark{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;border-radius:13px;background:#eaf1d9;color:#42582e;font-size:19px;font-weight:750}
+.karel-project-title{flex:1;min-width:0}
+.karel-project-title h3{font-size:17px;line-height:1.35;letter-spacing:-.01em;overflow-wrap:anywhere;margin:0 0 3px}
+.karel-project-title h3 a{color:#253322}
+.karel-project-type{font-size:11px;color:#617064}
+.karel-status-pill{font-size:11px;line-height:1.5;font-weight:700;border-radius:999px;padding:5px 9px;background:#eff1ed;color:#4e594d;white-space:nowrap;display:inline-flex;align-items:center;max-width:100%}
+.karel-status-pill.synced{background:#e9f4e8;color:#29663c}
+.karel-status-pill.error{background:#fff0e8;color:#963c25}
+.karel-status-pill.setup,.karel-status-pill.unlinked,.karel-status-pill.pending{background:#fff6de;color:#755315}
+.karel-project-goal>span,.karel-project-next>div>span,.karel-focus-label{display:block;text-transform:uppercase;letter-spacing:.04em;font-size:11px;font-weight:700;color:#687466}
+.karel-project-goal p{margin:5px 0 0;color:#374639;font-size:14px;line-height:1.65;overflow-wrap:anywhere;min-height:45px}
+.karel-project-meta{display:flex;gap:8px 15px;align-items:center;flex-wrap:wrap;color:#657266;font-size:12px;padding-bottom:4px}
+.karel-project-meta span{display:inline-flex;gap:4px}
+.karel-project-meta b{color:#293b24}
+.karel-project-meta .is-attention,.karel-project-status-row .is-attention{color:#a64a1b;font-weight:700}
+.karel-project-next{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 14px;border-radius:12px;background:#f2f6ea;border:1px solid #e4ebd9;margin-top:auto}
+.karel-project-next.is-attention{background:#fff4e7;border-color:#f1d2ab}
+.karel-project-next strong{display:block;color:#2d4027;font-size:13px;margin-top:4px;font-weight:650;line-height:1.45}
+.karel-project-next>a{flex-shrink:0;font-size:12px;font-weight:700;color:#3f640a;white-space:nowrap}
+.karel-project-card-footer{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.karel-text-link{color:#476714;font-size:12px;font-weight:750;text-decoration:none}
+.karel-text-link:hover,.karel-project-next>a:hover{text-decoration:underline}
+.karel-empty-state{border:1px dashed #cbd5c3;background:#f7faf2;border-radius:14px;padding:28px;grid-column:1/-1}
+.karel-empty-state h3{margin:0 0 8px;font-size:17px}
+.karel-empty-state p{font-size:14px;line-height:1.6;color:#637160}
+.karel-search-empty{padding:15px;color:#6c776c}
+.karel-archive{margin:22px 0;border:1px solid #dce4d7;background:#fff;border-radius:12px}
+.karel-project-focus{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:13px;margin:8px 0 12px}
+.karel-focus-goal,.karel-focus-next{padding:22px 24px;border:1px solid #dce4d7;background:#fff;border-radius:16px;min-width:0}
+.karel-focus-goal p{margin:9px 0 14px!important;font-size:17px!important;line-height:1.65!important;color:#28382a;overflow-wrap:anywhere}
+.karel-focus-next{background:#edf3de;border-color:#dce9c7}
+.karel-focus-next.is-attention{background:#fff5e9;border-color:#e9c699}
+.karel-focus-next h3{font-size:17px;font-weight:700;line-height:1.5;margin:9px 0 15px;overflow-wrap:anywhere}
+.karel-project-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0 16px}
+.karel-project-status-row>span,.karel-project-status-row>a:not(.karel-status-pill){font-size:12px;line-height:1.5;padding:6px 10px;border-radius:999px;background:#f1f3ed;color:#5a685a}
+.karel-scope-brief{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 19px;border:1px solid #e1e6dc;border-radius:13px;background:#fff;margin:15px 0}
+.karel-scope-brief b{font-size:13px}
+.karel-scope-brief p{font-size:13px!important;color:#687466!important;line-height:1.65!important;margin:5px 0 0!important}
+.karel-scope-brief>a{flex-shrink:0}
+.karel-github-connection{margin:14px 0 22px;padding:24px;border:1px solid #e1e7dc;border-radius:16px;background:#fff}
+.karel-github-connection.setup,.karel-github-connection.unlinked,.karel-github-connection.pending{background:#fbfcf8}
+.karel-github-connection.error{border-color:#e8c3aa;background:#fffaf6}
+.karel-github-connection.synced{border-color:#ccdfc5;background:#f8fcf7}
+.karel-github-connection-top{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.karel-github-connection h2{margin:0 0 8px;font-size:20px;overflow-wrap:anywhere}
+.karel-github-connection p{margin:0 0 12px;font-size:14px;line-height:1.65;color:#55655a}
+.karel-github-time{font-size:12px;color:#637468}
+.karel-github-next{margin-top:16px;padding:13px 16px;background:#fff;border:1px solid #e1e7dc;border-radius:12px}
+.karel-github-next b{font-size:13px}
+.karel-github-next p{font-size:13px;margin:5px 0 0}
+.karel-github-next code{overflow-wrap:anywhere}
+.karel-github-sync-panel{padding:18px 20px;margin:16px 0 22px;background:#fff;border:1px solid #dce4d7;border-radius:14px}
+.karel-github-sync-panel h3{font-size:15px;margin:0 0 14px}
+.karel-github-sync-panel label{display:block;font-size:13px;font-weight:700}
+.karel-github-sync-panel input{width:100%;margin:6px 0 8px;padding:11px;font:inherit;border:1px solid #c6d1c2;border-radius:9px}
+.karel-github-sync-panel p{font-size:12px;line-height:1.55;color:#647061}
+.karel-github-metrics{margin:15px 0}
+.karel-github-metrics>div{padding:15px}
+.karel-snapshot-disclaimer{font-size:12px;color:#657267;padding:0 0 12px}
+@media(max-width:1170px){
+  .karel-project-cards{grid-template-columns:1fr}
+  .karel-project-card-head{flex-wrap:wrap}
+  .karel-project-card-head .karel-status-pill{margin-left:auto}
+}
+@media(max-width:850px){
+  .karel-portfolio-stats,.karel-github-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .karel-project-focus{grid-template-columns:1fr}
+  .karel-portfolio-toolbar{align-items:stretch;flex-direction:column}
+  .karel-project-search{max-width:none;width:100%}
+  .karel-page-heading{flex-wrap:wrap}
+  .karel-scope-brief{flex-direction:column;align-items:flex-start}
+}
+@media(max-width:760px){
+  .karel-portfolio{padding-top:22px!important}
+  .karel-page-heading h1{font-size:27px}
+  .karel-page-heading>.btn{width:100%}
+  .karel-portfolio-stats{gap:9px;margin:17px 0 21px}
+  .karel-portfolio-stats>div,.karel-github-metrics>div{padding:13px}
+  .karel-portfolio-stats strong,.karel-github-metrics strong{font-size:24px}
+  .karel-project-cards{gap:12px}
+  .karel-project-card{padding:16px;gap:13px}
+  .karel-project-card-head{gap:9px}
+  .karel-project-card-head .karel-status-pill{flex-basis:auto;white-space:normal}
+  .karel-project-next{align-items:flex-start;flex-direction:column}
+  .karel-project-card-footer>.btn{width:100%;text-align:center}
+  .karel-project-card-footer{gap:12px}
+  .karel-focus-goal,.karel-focus-next{padding:17px}
+  .karel-focus-goal p{font-size:15px!important}
+  .karel-github-connection{padding:17px}
+  .karel-github-sync-panel{padding:15px}
+  .karel-attention-note{display:block}
+  .karel-deadline-list a{display:block}
+  .karel-project-status-row{padding-bottom:10px}
+}
+
+/* Accessibility refinement: readable Poppins text without shrinking dense controls. */
+.project-v2 .content-view .view-head p,.project-v2 .content-view .fresh-detail-body p{font-size:14px;line-height:1.7}
+.project-v2 .content-view label{font-size:14px}
+.project-v2 .content-view input,.project-v2 .content-view select,.project-v2 .content-view textarea{font-size:15px}
+.karel-quick-text,.karel-quick-text p,.karel-quick-empty{font-size:13px;line-height:1.65}
+.karel-primary-menu>a b{font-size:14px}
+.karel-project-title h3{font-size:18px}
+.karel-project-goal p{font-size:15px}
+@media(max-width:760px){
+  .karel-primary-menu>a b{font-size:14px}
+  .karel-project-title h3{font-size:17px}
+  .karel-project-goal p{font-size:14px}
+}
+
+
+/* Karel UX follow-up – project intake and conversational onboarding, 19 Nov 2026.
+   Reuses existing Fresh cards/buttons and type system; no shadow components. */
+.karel-portfolio-heading-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.karel-project-brief-missing{display:flex;justify-content:space-between;align-items:center;gap:9px;border-top:1px solid #edf0e9;padding-top:9px;font-size:13px;color:#61705f}
+.karel-project-brief-missing a{color:#426910;font-size:12px;font-weight:750;white-space:nowrap}
+.karel-portfolio-onboarding{padding:24px;border:1px solid #d9e5ce;background:#f7faef;border-radius:16px;margin-bottom:24px}
+.karel-portfolio-onboarding h2{font-size:21px;margin:0 0 8px}
+.karel-portfolio-onboarding p{font-size:14px;line-height:1.7;color:#58695b}
+.karel-portfolio-onboarding small{display:block;margin-top:13px;color:#69776b;line-height:1.6}
+.karel-onboarding-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.karel-doc-guidance{display:flex;justify-content:space-between;align-items:center;gap:22px;background:#f2f7e8;border:1px solid #dce7ce;border-radius:16px;padding:22px 24px;margin:14px 0 17px}
+.karel-doc-guidance h3{margin:7px 0;font-size:17px}
+.karel-doc-guidance p{margin:0;line-height:1.7;color:#5c6b59;font-size:14px;max-width:75ch}
+.karel-doc-guidance .btn{white-space:nowrap;flex-shrink:0}
+.karel-starter-options{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin:18px 0 13px}
+.karel-starter-options button{border:1px solid #d7e3ca;background:#f6f9ef;color:#405c25;border-radius:12px;padding:11px 14px;font-family:inherit;font-weight:650;font-size:13px;cursor:pointer}
+.karel-starter-options button:hover,.karel-starter-options button:focus-visible{border-color:#9ec415;background:#ecf6da;outline-offset:2px}
+.compact-welcome>small{font-size:12px;line-height:1.65;color:#697769;max-width:60ch;display:block;margin:0 auto}
+.karel-import-page{max-width:1250px;margin:0 auto;padding:38px 22px 90px}
+.karel-import-intro{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0}
+.karel-import-intro>div{border:1px solid #e0e6db;border-radius:15px;padding:17px 19px;background:#fff}
+.karel-import-number{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#e9f1da;color:#486713;font-weight:750;font-size:14px}
+.karel-import-intro h2{font-size:15px;margin:10px 0 7px}
+.karel-import-intro p,.karel-import-source p,.karel-import-results p{font-size:13px;line-height:1.7;color:#576558}
+.karel-import-source,.karel-import-results{border:1px solid #e0e7dc;border-radius:15px;padding:21px 23px;background:#fff;margin:18px 0}
+.karel-import-source p{margin:0 0 10px}
+.karel-import-source .btn{margin-top:10px}
+.karel-import-source .karel-import-honesty{color:#766444}
+.karel-import-results h2{font-size:20px;margin:0 0 7px}
+.karel-import-table-wrap{width:100%;overflow-x:auto;margin-top:20px}
+.karel-import-table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}
+.karel-import-table th{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:#657366;background:#f3f6f0;padding:12px 13px}
+.karel-import-table td{padding:15px 13px;border-top:1px solid #e6eae1;vertical-align:top;min-width:0}
+.karel-import-table td:first-child{width:63px;text-align:center}
+.karel-import-table td:nth-child(2){width:34%}
+.karel-import-table label{cursor:pointer}
+.karel-import-table td strong{display:block;font-size:14px;color:#283a28;overflow-wrap:anywhere}
+.karel-import-table td small{display:block;margin-top:6px;font-size:12px;color:#667467;line-height:1.55;overflow-wrap:anywhere}
+.karel-import-table td a{display:inline-block;font-size:12px;margin-top:8px;color:#466615;font-weight:650}
+.karel-import-table input[type=checkbox]{width:18px;height:18px;accent-color:#89b519}
+.karel-import-table .karel-import-map-label{display:block;margin-top:10px;font-size:12px;color:#5b685e;font-weight:650}
+.karel-import-table select{font:inherit;font-size:13px;max-width:100%;width:100%;padding:10px 12px;border:1px solid #cdd8ca;background:#fff;border-radius:9px;margin-top:5px}
+.karel-import-consent{display:flex;align-items:flex-start;gap:12px;line-height:1.7;font-size:13px;color:#556455;margin:24px 0 17px}
+.karel-import-consent input{margin-top:4px;accent-color:#89b519}
+.karel-import-warning{color:#9b451b!important;font-weight:650}
+@media(max-width:1000px){
+  .karel-import-intro{grid-template-columns:1fr}
+  .karel-import-table td:nth-child(2){width:40%}
+  .karel-doc-guidance{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:760px){
+  .karel-import-page{padding:20px 12px 100px}
+  .karel-import-source,.karel-import-results{padding:14px}
+  .karel-import-table th,.karel-import-table td{padding:11px 8px}
+  .karel-import-table{font-size:12px}
+  .karel-import-table td strong{font-size:13px}
+  .karel-import-table td small{font-size:11px}
+  .karel-import-table select{font-size:12px;min-width:180px}
+  .karel-portfolio-heading-actions{width:100%}
+  .karel-portfolio-heading-actions .btn{flex:1;text-align:center}
+  .karel-doc-guidance{padding:16px}
+  .karel-doc-guidance .btn{white-space:normal;text-align:center}
+  .karel-starter-options button{flex-basis:100%}
+  .karel-project-brief-missing{align-items:flex-start;flex-direction:column}
+}
+
+/* Guided start replaces empty project KPI board; retains existing workflow. */
+.karel-project-empty-start{padding:25px 28px;border:1px solid #d6e3c7;border-radius:16px;background:#f5f9ed;margin:16px 0 22px}
+.karel-project-empty-start h3{font-size:20px;line-height:1.45;margin:8px 0}
+.karel-project-empty-start p{font-size:14px!important;line-height:1.75!important;color:#566957;max-width:75ch;margin:9px 0!important}
+.karel-library-empty{background:#f6f9f0;border:1px solid #d9e5ca;border-radius:15px;padding:30px;grid-column:1/-1}
+.karel-library-empty h3{font-size:22px;margin:9px 0 10px}
+.karel-library-empty p{font-size:14px;line-height:1.75;color:#536454;max-width:68ch}
+.karel-library-examples{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}
+.karel-library-examples span{font-size:12px;color:#4c692d;background:#fff;border:1px solid #dae4d2;border-radius:999px;padding:7px 11px}
+.karel-library-empty .karel-library-limit{font-size:12px;color:#73806d;max-width:85ch;margin:0 0 15px}
+.project-sidebar .logout-form,.global-sidebar .logout-form{margin:5px 0 0}
+.project-sidebar .logout-form .side-logout,.global-sidebar .logout-form .side-logout{display:block;text-align:left;background:transparent;color:#afc0af!important;border:1px solid transparent;border-radius:8px;padding:10px 11px;cursor:pointer;width:100%;font:inherit;font-weight:600;font-size:12px}
+.project-sidebar .logout-form .side-logout:hover,.global-sidebar .logout-form .side-logout:hover{border-color:#4e604f;background:#233026;color:#fff!important}
+@media(max-width:760px){.karel-project-empty-start{padding:17px}.karel-library-empty{padding:20px}.karel-library-empty h3{font-size:18px}}
+
+
+/* KAREL two-route first impression and guided project source workflow. */
+.karel-two-journeys{margin:0 0 25px}
+.karel-choice-heading{margin:0 0 14px}
+.karel-choice-heading h2{margin:0 0 5px;font-size:22px;line-height:1.35}
+.karel-choice-heading p{margin:0;color:#667463;font-size:14px;line-height:1.6}
+.karel-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.karel-choice-card{display:flex;align-items:flex-start;gap:18px;padding:23px 24px;border-radius:16px;background:#fff;border:1px solid #dbe4d6;min-width:0;box-shadow:0 4px 16px rgba(24,42,22,.035)}
+.karel-choice-card:hover{border-color:#a8c57b}
+.karel-choice-symbol{flex:0 0 52px;width:52px;height:52px;border-radius:14px;background:#eaf3da;color:#425c1a;font-size:18px;display:grid;place-items:center;font-weight:800;letter-spacing:-.02em}
+.karel-choice-symbol.dev{background:#ebeee9;color:#334b38;font-size:18px}
+.karel-choice-card>div{min-width:0;flex:1}
+.karel-choice-card h3{font-size:17px;line-height:1.4;margin:1px 0 7px}
+.karel-choice-card p{font-size:13px;line-height:1.75;color:#606f62;margin:0 0 17px;max-width:50ch}
+.karel-choice-card .btn{font-size:13px}
+.karel-create-intro h2{font-size:22px;margin:5px 0 6px}
+.karel-create-intro p{font-size:13px;color:#647366;margin:0 0 12px}
+.karel-create-actions,.karel-type-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.karel-type-actions form{margin:0}
+#website-url-field[hidden]{display:none!important}
+#website-url-field small{display:block;font-size:11px;line-height:1.6;color:#778174;margin-top:5px}
+.karel-type-choice{display:flex;justify-content:space-between;align-items:center;gap:17px;padding:18px 21px;background:#f7f9f0;border:1px solid #dae5cd;border-radius:15px;margin-bottom:15px}
+.karel-type-choice h3{font-size:17px;margin:7px 0 6px}
+.karel-type-choice p{font-size:13px!important;color:#627263;margin:0!important;line-height:1.65!important}
+.karel-journey{background:#fff;border:1px solid #dae2d6;border-radius:16px;padding:22px 23px;margin:18px 0}
+.karel-journey-head h3{font-size:19px;margin:6px 0}
+.karel-journey-head p{font-size:13px;line-height:1.7;color:#657365;margin:4px 0 16px}
+.karel-journey-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.karel-journey-step{display:flex;align-items:flex-start;gap:12px;border-radius:12px;border:1px solid #e3e9e0;padding:15px;background:#fbfcf9;min-width:0}
+.karel-journey-step.next{background:#f5f8ee;border-color:#d5e2c7}
+.karel-journey-step.planned{background:#fafbfa}
+.karel-journey-index{flex-shrink:0;display:grid;place-items:center;width:31px;height:31px;background:#e8eee2;border-radius:10px;color:#60735c;font-weight:800;font-size:13px}
+.karel-journey-step.done .karel-journey-index{background:#daf0db;color:#276d37}
+.karel-journey-step.next .karel-journey-index{background:#deecbf;color:#47671b}
+.karel-journey-step-body{flex:1;min-width:0}
+.karel-journey-step-top{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.karel-journey-step h4{margin:0 0 6px;font-size:13px;line-height:1.5;font-weight:750}
+.karel-journey-step-top span{font-size:10px;line-height:1.35;color:#6e8066;white-space:nowrap}
+.karel-journey-step.planned .karel-journey-step-top span{color:#8b8271}
+.karel-journey-step p{margin:0 0 10px!important;font-size:12px!important;color:#606c60!important;line-height:1.65!important}
+.karel-journey-step.planned p{color:#778178!important}
+.karel-journey-footer{font-size:11px!important;line-height:1.7!important;color:#737f71!important;margin:14px 0 0!important}
+.karel-wordpress-install{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;border:1px solid #d6e3c8;background:#f6faef;border-radius:16px;padding:22px 24px;margin-top:18px}
+.karel-wordpress-install-main h3{font-size:20px;line-height:1.45;margin:8px 0}
+.karel-wordpress-install-main p{font-size:13px;line-height:1.7;color:#5e6e5b;max-width:70ch}
+.karel-wordpress-install-main small{display:block;margin-top:11px;font-size:11px;line-height:1.6;color:#70806a}
+.karel-wordpress-install-guide{list-style:decimal inside;padding:0;margin:0;display:grid;gap:10px;counter-reset:wp-install}
+.karel-wordpress-install-guide li{list-style:none;position:relative;background:#fff;border:1px solid #e2ebd8;border-radius:12px;padding:12px 14px 12px 42px;counter-increment:wp-install;min-width:0}
+.karel-wordpress-install-guide li::before{content:counter(wp-install);position:absolute;left:13px;top:13px;display:grid;place-items:center;width:22px;height:22px;border-radius:8px;background:#e8f2d3;font-size:12px;font-weight:750}
+.karel-wordpress-install-guide b{display:block;font-size:13px;margin-bottom:5px}
+.karel-wordpress-install-guide span{display:block;font-size:12px;line-height:1.65;color:#677365}
+.karel-website-declared{background:#fff;border:1px solid #e0e5db;border-radius:12px;padding:14px 17px;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.karel-website-declared small{display:block;margin-top:5px;font-size:11px;color:#708075}
+.karel-website-url-edit{background:#fff;border:1px solid #dde5d5;border-radius:11px;padding:14px 16px;margin:10px 0}
+.karel-website-url-edit summary{cursor:pointer;font-size:13px;font-weight:700}
+.karel-website-url-edit form{display:grid;gap:10px;margin-top:15px}
+.karel-website-url-edit label{display:grid;gap:6px;font-size:13px;font-weight:650}
+.karel-website-url-edit input{border:1px solid #ced9c7;border-radius:9px;padding:11px;font-size:14px}
+.karel-website-url-edit p{font-size:12px;line-height:1.7;color:#687669;margin:0}
+.karel-connector-truth{padding:18px 22px;border:1px solid #e5dbc3;background:#fffcf4;border-radius:14px;margin:18px 0}
+.karel-connector-truth strong{font-size:14px}
+.karel-connector-truth p{font-size:13px;line-height:1.7;color:#6b6857}
+.karel-workflow-intro{padding:15px 18px;border:1px solid #dce6d7;background:#f7f9f4;border-radius:13px;margin-bottom:15px}
+.karel-workflow-intro h2{font-size:15px;margin:0 0 6px}
+.karel-workflow-intro p{font-size:13px;line-height:1.65;color:#647267;margin:0 0 9px}
+@media(max-width:1100px){.karel-choice-grid,.karel-journey-steps{grid-template-columns:1fr}.karel-wordpress-install{grid-template-columns:1fr}}
+@media(max-width:760px){
+.karel-choice-card{padding:16px;gap:12px}
+.karel-choice-symbol{width:42px;height:42px;flex-basis:42px;font-size:14px}
+.karel-choice-card h3{font-size:15px}
+.karel-choice-card p{font-size:12px}
+.karel-choice-card .btn{width:100%;padding:10px}
+.karel-type-choice{align-items:stretch;flex-direction:column;padding:15px}
+.karel-type-actions{align-items:stretch;flex-direction:column}
+.karel-type-actions form,.karel-type-actions button{width:100%}
+.karel-journey{padding:15px;margin:14px 0}
+.karel-journey-step{padding:12px}
+.karel-journey-step-top{flex-wrap:wrap}
+.karel-wordpress-install{padding:15px}
+.karel-wordpress-install-main h3{font-size:17px}
+.karel-create-actions{flex-direction:column;align-items:stretch}
+.karel-create-actions .btn{width:100%}
+}
+
+/* GitHub summary: few primary links, full detail stays in GitHub. */
+.karel-github-workspace{max-width:1240px}
+.karel-github-shortcuts{border:1px solid #dfe6d8;background:#fff;border-radius:15px;padding:20px;margin:16px 0}
+.karel-github-shortcuts-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.karel-github-shortcuts-head h2{font-size:18px;margin:0 0 11px}
+.karel-github-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.karel-github-links>div{padding:14px;background:#f8faf5;border:1px solid #e5ebdf;border-radius:12px;min-width:0}
+.karel-github-links h3{font-size:14px;margin:0 0 10px}
+.karel-github-links p{font-size:12px;line-height:1.65;margin:7px 0;overflow-wrap:anywhere}
+.karel-github-links a{color:#446516;font-weight:600}
+.karel-github-links a:hover{text-decoration:underline}
+.karel-github-disclaimer{font-size:13px;color:#687666;line-height:1.65}
+.karel-github-shortcuts details{margin:14px 0 0}
+@media(max-width:760px){.karel-github-shortcuts{padding:14px}.karel-github-links{grid-template-columns:1fr}}
+
+/* Fresh Core read-only operational data (no cosmetic redesign). */
+.karel-live-source{background:#fff;border:1px solid #dce4d8;border-radius:15px;padding:22px 24px;margin:22px 0}
+.karel-live-source-head{display:flex;justify-content:space-between;align-items:center;gap:15px}
+.karel-live-source-head h3{font-size:19px;margin:6px 0 3px}
+.karel-live-source-head p{font-size:12px;color:#6e7b70;margin:0}
+.karel-live-source-head form{margin:0;flex-shrink:0}
+.karel-source-truth{font-size:12px!important;line-height:1.7!important;color:#647366!important;padding:10px 0}
+.karel-freshcore-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.karel-freshcore-metrics>div{padding:14px 12px;border:1px solid #e2eadd;background:#f6f9f2;border-radius:10px;min-width:0}
+.karel-freshcore-metrics b{display:block;overflow-wrap:anywhere;font-size:21px;line-height:1.5}
+.karel-freshcore-metrics span{display:block;font-size:11px;color:#647466;line-height:1.5}
+.karel-live-source>p{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.karel-freshcore-form{display:grid;gap:12px;margin:16px 0}
+.karel-freshcore-form label{display:grid;gap:7px;font-size:13px;font-weight:650}
+.karel-freshcore-form input{width:100%;border:1px solid #ccd8c7;background:#f8faf6;padding:12px;border-radius:9px}
+.karel-freshcore-form small{font-size:11px;color:#6b766a;line-height:1.7}
+.karel-freshcore-form button{justify-self:start}
+.karel-connector-warning{border-left:3px solid #b88738;padding:11px 14px;background:#fff9ec;color:#625742!important;border-radius:5px}
+.karel-connector-disconnect{background:#fafbf8;border:1px solid #e5eadf;border-radius:12px;padding:14px 17px;margin:18px 0}
+.karel-connector-disconnect summary{font-size:13px;font-weight:700;cursor:pointer}
+.karel-connector-disconnect p{font-size:12px;line-height:1.7;color:#6f776b}
+.karel-connector-disconnect form{margin:8px 0}
+.karel-confirm-project-delete{display:grid;gap:10px;margin:0}
+.karel-confirm-project-delete label{display:grid;gap:5px;font-size:12px;line-height:1.6}
+.karel-confirm-project-delete input{border:1px solid #dfc5c0;border-radius:9px;padding:9px 11px;background:#fff}
+.karel-manageable-files .files-row{grid-template-columns:minmax(190px,2fr) minmax(65px,.65fr) minmax(70px,.65fr) minmax(70px,.65fr) minmax(170px,1.3fr);align-items:center;gap:8px}
+.karel-manageable-files .files-row:not(.head){border-bottom:1px solid #edf0e9;padding:13px 12px}
+.karel-manageable-files .files-row a{font-size:13px;color:#405e19}
+.karel-manageable-files .files-row span{font-size:12px;overflow-wrap:anywhere}
+.karel-file-actions{display:flex;gap:7px;flex-wrap:wrap}
+.karel-file-actions form{margin:0}
+.karel-file-actions .btn{padding:8px 10px;font-size:11px}
+@media(max-width:1000px){.karel-freshcore-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){
+ .karel-live-source{padding:17px}
+ .karel-live-source-head{flex-direction:column;align-items:flex-start}
+ .karel-live-source-head form,.karel-live-source-head .btn{width:100%}
+ .karel-freshcore-form button{justify-self:stretch}
+ .karel-manageable-files .files-row{display:flex;flex-wrap:wrap;gap:9px}
+ .karel-manageable-files .files-row.head{display:none}
+ .karel-manageable-files .files-row>span:first-child{flex-basis:100%}
+ .karel-manageable-files .files-row>span:last-child{margin-left:auto}
+}
+
+
+/* Project management is a primary task, not a hidden technical configuration. */
+.karel-project-management{max-width:1060px;margin-inline:auto}
+.karel-project-management .view-head{margin-bottom:19px}
+.karel-manage-status{background:#f5f8ef;border:1px solid #dce8cd;border-radius:13px;padding:18px 20px;margin:0 0 16px}
+.karel-manage-status>div{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.karel-manage-status strong{font-size:18px;overflow-wrap:anywhere}
+.karel-manage-status p{margin:9px 0 0;font-size:13px;color:#62705f;line-height:1.6}
+.karel-manage-state{border-radius:999px;background:#e0f0c7;color:#365b17;font-size:11px;padding:5px 10px;font-weight:750}
+.karel-manage-state.archived{background:#f3ede3;color:#725735}
+.karel-manage-block{margin:0 0 16px;padding:19px 21px;background:#fff;border:1px solid #dde5d8;border-radius:13px}
+.karel-manage-block .settings-block-head{margin-bottom:13px}
+.karel-manage-block .settings-block-head h3{font-size:16px;line-height:1.5;margin:0 0 5px}
+.karel-manage-block .settings-block-head p{font-size:13px;line-height:1.65;color:#6b786a;margin:0}
+.karel-manage-edit{display:grid;gap:15px}
+.karel-manage-edit label{display:grid;gap:7px;font-size:13px;font-weight:700}
+.karel-manage-edit input,.karel-manage-edit textarea{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #d0daca;background:#fbfcfa;font-size:14px;line-height:1.5}
+.karel-manage-edit .btn{justify-self:start}
+.karel-manage-shortcuts{display:flex;gap:10px;flex-wrap:wrap}
+.karel-manage-block.danger-zone{background:#fffdf9;border-color:#e9dccc}
+.karel-manage-archive-form{margin-top:13px}
+.karel-manage-warning{font-size:12px;color:#7a6e5a;line-height:1.65;margin:12px 0 0}
+.karel-danger-disclosure{margin-top:20px;background:#fff;border:1px solid #ead6cd;border-radius:12px;padding:16px 17px}
+.karel-danger-disclosure summary{cursor:pointer;color:#863c30;font-weight:700;font-size:13px}
+.karel-danger-disclosure>p{font-size:12px;line-height:1.75;color:#6c5d55;margin:12px 0}
+.karel-danger-disclosure .btn.danger{justify-self:start}
+.karel-project-settings-shortcut{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-radius:13px;background:#f1f6e5;border:1px solid #d7e3c7;margin-bottom:18px}
+.karel-project-settings-shortcut h3{font-size:15px;margin:0 0 6px}
+.karel-project-settings-shortcut p{font-size:12px;line-height:1.65;color:#657364;margin:0}
+.karel-project-settings-shortcut .btn{flex-shrink:0}
+.karel-manage-card-link{font-weight:750}
+.karel-archive-empty{font-size:13px;color:#657265;padding:14px}
+@media(max-width:760px){
+ .karel-manage-block{padding:15px}
+ .karel-manage-status{padding:16px}
+ .karel-manage-edit .btn,.karel-manage-archive-form .btn{width:100%;justify-self:stretch}
+ .karel-manage-shortcuts{flex-direction:column}
+ .karel-manage-shortcuts .btn{width:100%}
+ .karel-project-settings-shortcut{align-items:stretch;flex-direction:column}
+ .karel-project-settings-shortcut .btn{width:100%}
+ .karel-danger-disclosure .btn.danger{width:100%}
+}
+
+/* Existing Fresh Core installation is the normal path for returning users. */
+.karel-freshcore-onboard-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 10px}
+.karel-freshcore-onboard-actions .btn{max-width:100%}
+#fresh-core-pripojeni{scroll-margin-top:85px}
+@media(max-width:760px){
+  .karel-freshcore-onboard-actions{flex-direction:column;align-items:stretch}
+  .karel-freshcore-onboard-actions .btn{width:100%;text-align:center}
+}
