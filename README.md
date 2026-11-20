@@ -1,11 +1,13 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.2-passenger-startup-fix`.**
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.3-github-document-context`.**
 Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
 
 **Oprava starých formulářů (20. 11. 2026):** WordPress Fresh Core `manifest.json` vložený i do staršího formuláře „Manifest projektu / aplikace“ je bezpečně rozpoznán a předán `/fresh-core/manifest-connect`. Zapisuje se pouze šifrovaná URL a ověřené READ údaje. Po úspěchu nebo chybě se uživatel vrací na `?view=website#fresh-core-pripojeni`, nikoli do chatu. Obecné manifesty jiných aplikací nadále používají původní cestu. Podrobnosti v [Issue #19](https://github.com/soufekladislav/Karel/issues/19).
 
 **Hotfix HTTP 500 (20. 11. 2026):** aktualizován `passenger_wsgi.py` pro Python 3.12+; neinstalované `cryptography` v Exon venv již neshodí celého Karla při importu. Pro správnou činnost konektoru však musí být `requirements.txt` nainstalován **v Passenger venv**. Viz [návod k obnově 500](docs/EXON_SERVER_500_RECOVERY_2026-11-20.md).
+
+**První GitHub funkční celek (20. 11. 2026):** Karlův čtecí snapshot nyní obsahuje i ověřené výňatky vybraných projektových dokumentů. Starší projekty musí provést aktualizaci GitHub snímku, jinak jejich cache ještě neobsahuje texty. Chybějící dokumenty se nesmějí prezentovat jako ověřené. Tato dávka **nepřidává žádné GitHub write, merge ani close operace**.
 
 ## Vývojový režim (rozhodnutí 20. 11. 2026)
 - **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.
@@ -13,7 +15,7 @@ Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav
 - **Sloučení v GitHubu není automatické nasazení na Exon.** Skutečná verze na serveru se musí ověřit zvlášť (manifest/health/logy).
 
 ## Současné schopnosti a omezení
-- GitHub: ruční READ snapshot / import a základní přehled Issues, PR a CI. Kompletní dokumentace/obsah souborů, Projects v2 a delta synchronizace jsou stále rozpracované (#20).
+- GitHub: při ruční synchronizaci Karel nově čte obsah nejvýše 3 **vybraných Markdown dokumentů** (typicky README, produktovou dokumentaci, AGENTS), připne jejich blob SHA a bezpečně omezené výňatky uloží se snapshotem i do kontextu chatu. Na GitHub kartě vypíše, co skutečně četl. **Nejde o kompletní audit kódu** a GitHub Projects v2/delta sync/zápisy jsou stále otevřené (#20, #9). Přejímací otázka: „Co je Linda a co má umět?“ musí mít odpověď z README a docs/PARITY.md i při nulových Issues.
 - Fresh Core: **dva způsoby READ** – přímý REST Access Key nebo soukromá Connector Manifest URL jako v Bobanovi. Manifest se ověří (identita webu, dokončení dávky, kontrolní součty vybraných souborů), zašifruje a automaticky nastaví projektovou URL. Inventura a diff změn jsou dostupné v kartě webu i chatu. Samostatný Write Key lze ověřit pouze přes `GET /write/ping`; skutečné zápisy do WP nejsou povoleny. Celý obsah exportů, runtime PHP/JS diagnostika a obecné editace pluginů dosud nejsou hotové (#19).
 - Karel je projektový manažer, nikoli automatický vývojář ani nástroj s neomezeným přístupem do WordPressu.
 

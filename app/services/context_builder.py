@@ -388,7 +388,9 @@ def build_context(
 
     # Small, timestamped GitHub snapshot only when project context is relevant.
     if any(term in (query or '').lower() for term in
-           ('github', 'issue', 'repo', 'projekt', 'úkol', 'ukol', 'stav', 'synchroniz', 'ci ', 'branch')):
+           ('github', 'issue', 'repo', 'projekt', 'úkol', 'ukol', 'stav', 'synchroniz', 'ci ', 'branch',
+            'aplikac', 'co umí', 'co umi', 'co dělá', 'co dela', 'účel', 'ucel',
+            'readme', 'dokumentac', 'co je linda', 'co je boban', 'co je ema')):
         try:
             from ..models import GitHubRepoLink
             from .github_connector import prompt_summary

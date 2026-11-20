@@ -96,6 +96,26 @@
       </section>
       <p class="karel-snapshot-disclaimer">Poslední uložený snímek GitHubu, nikoli živá data. Počty mohou být omezené rozsahem synchronizace a oprávněními.</p>
 
+      <section class="karel-github-next" aria-label="Zdrojová dokumentace repozitáře">
+        <h3>Co Karel skutečně přečetl z dokumentace</h3>
+        {% set gh_docs = snapshot.get('documentation_excerpts', []) %}
+        {% if gh_docs %}
+          <p>Při posledním načtení přečetl {{ gh_docs|length }} vybrané dokumenty.
+             Jejich text může použít v chatu k vysvětlení projektu. Nejde o kompletní prohlídku veškerého kódu.</p>
+          {% for doc in gh_docs %}
+            <p><a class="karel-text-link" href="{{ doc.url }}" target="_blank" rel="noopener noreferrer">{{ doc.path }}</a>
+               · otisk {{ doc.sha[:10] }}{% if doc.excerpt_truncated %} · pouze výňatek{% endif %}</p>
+          {% endfor %}
+          {% if snapshot.get('documentation_status') != 'complete_selection' %}
+            <p>Další zvolené dokumenty se nepodařilo ověřit. Výsledek je neúplný.</p>
+          {% endif %}
+        {% else %}
+          <p>Obsah dokumentů zatím není ověřený ({{ snapshot.get('documentation_status', 'starší snapshot') }}).
+             Karel z těchto dat nedokáže bezpečně vysvětlit celé fungování aplikace.
+             Aktualizace snímku se provádí v připojení GitHubu výše.</p>
+        {% endif %}
+      </section>
+
       <section class="karel-github-shortcuts">
         <div class="karel-github-shortcuts-head"><h2>Co řešíme dál?</h2>
           {% if snapshot.get('html_url') %}<a class="karel-text-link" href="{{ snapshot.get('html_url') }}" target="_blank" rel="noopener noreferrer">Všechno na GitHubu →</a>{% endif %}
