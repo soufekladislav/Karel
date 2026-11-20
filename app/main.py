@@ -37,6 +37,7 @@ from .services.project_journeys import (selected_project_type, project_mode, val
                                          journey_for_project)
 from .services.fresh_core_project import (
     connection_state as fresh_core_state, connect_readonly, refresh_readonly, disconnect_readonly,
+    connect_manifest, refresh_connected, connect_write_key,
 )
 from .services.fresh_core_reader import FreshCoreError
 from .services.brain import load_brain, save_brain
@@ -117,7 +118,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.34-fresh-core-read-audit'
+APP_VERSION = '2.0.0-alpha.35-fresh-core-manifest-link'
 
 
 PROJECT_SPEC_KINDS = {
@@ -533,7 +534,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         {'name':'Task management','status':'active','label':'Aktivní'},
         {'name':'Historie tasků','status':'planned','label':'V přípravě'},
         {'name':'Manifest projektu','status':'active','label':'Aktivní'},
-        {'name':'Fresh Core kontext','status':'planned','label':'V přípravě'},
+        {'name':'Fresh Core – manifest a inventura','status':'active','label':'READ na vyžádání'},
         {'name':'Archiv výstupů','status':'testing','label':'V testování'},
         {'name':'Current / Testing release','status':'planned','label':'V přípravě'},
         {'name':'Workspace a build ZIP','status':'planned','label':'V přípravě'},
@@ -583,10 +584,11 @@ def save_declared_website_url(request: Request, project_id: int,
         )
     try:
         url=validate_site_url(website_url)
+        if not url:
+            raise ValueError('Zadej adresu WordPress webu.')
     except ValueError as exc:
-        raise HTTPException(400, str(exc)[:250])
-    if not url:
-        raise HTTPException(400, 'Zadej adresu WordPress webu.')
+        return RedirectResponse(f'/projects/{p.id}?view=website&error=' +
+                                quote(str(exc)[:250]) + '#fresh-core-pripojeni', 303)
     existing=db.scalar(select(ProjectMemory).where(
         ProjectMemory.project_id == p.id, ProjectMemory.kind == 'wordpress_site_url'
     ).order_by(ProjectMemory.id.desc()))
@@ -602,7 +604,66 @@ def save_declared_website_url(request: Request, project_id: int,
                         detail='Uživatel uvedl adresu WordPress webu (neověřeno).'))
     db.commit()
     return RedirectResponse(f'/projects/{p.id}?view=website&notice=' +
-                            quote('Adresu webu jsem uložil; propojení se zatím neověřilo.'), 303)
+                            quote('Adresa webu byla uložena. Teď můžeš připojit Fresh Core.') +
+                            '#fresh-core-pripojeni', 303)
+
+
+# Fresh Core: manifest reader and write-ping only; no write operation.
+@app.post('/projects/{project_id}/fresh-core/manifest-connect')
+def fresh_core_manifest_connect(request: Request, project_id: int,
+                                manifest_url: str=Form(...),
+                                db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    if project_mode(project_spec(db, project.id).get('project_type'))!='wordpress':
+        raise HTTPException(400, 'Fresh Core patří k WordPress projektu.')
+    site=db.scalar(select(ProjectMemory).where(
+        ProjectMemory.project_id == project.id,
+        ProjectMemory.kind == 'wordpress_site_url'
+    ).order_by(ProjectMemory.id.desc()))
+    try:
+        connect_manifest(db, project.id, user.id, manifest_url,
+                         site.content if site and site.content else None)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_manifest_failed',
+                            detail='Manifest handshake failed; no credential stored.'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote(str(exc)[:220]) + '#fresh-core-pripojeni', 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Manifest ověřen. Web a jeho inventura byly uloženy; klíč zůstává skrytý.') +
+        '#fresh-core-pripojeni', 303)
+
+
+@app.post('/projects/{project_id}/fresh-core/write-verify')
+def fresh_core_write_verify(request: Request, project_id: int,
+                            write_key: str=Form(...), db: Session=Depends(get_db)):
+    user=require_user(request, db)
+    project=get_project_or_404(db, user, project_id, manage=True)
+    if project.status == 'archived':
+        raise HTTPException(409, 'Archivovaný projekt nelze připojovat.')
+    site=(fresh_core_state(db, project.id).get('snapshot') or {}).get('site_url')
+    try:
+        if not site:
+            raise FreshCoreError('Nejdřív ověř manifest nebo REST čtení webu.')
+        connect_write_key(db, project.id, user.id, site, write_key)
+    except FreshCoreError as exc:
+        db.rollback()
+        db.add(ProjectEvent(project_id=project.id, user_id=user.id,
+                            event_type='fresh_core_write_ping_failed',
+                            detail='Write ping failed; no credential stored.'))
+        db.commit()
+        return RedirectResponse(
+            f'/projects/{project.id}?view=website&error=' +
+            quote(str(exc)[:220]) + '#fresh-core-pripojeni', 303)
+    return RedirectResponse(
+        f'/projects/{project.id}?view=website&notice=' +
+        quote('Write Key ověřen. Karel zatím nic do WordPressu nezapisuje.') +
+        '#fresh-core-pripojeni', 303)
 
 
 # Fresh Core 0.7.8 – only authenticated READ; no WordPress writes.
@@ -652,7 +713,7 @@ def fresh_core_refresh(request: Request, project_id: int,
             f'/projects/{project.id}?view=website&error=' +
             quote('Nejdříve dokonči propojení Fresh Core.'), 303)
     try:
-        refresh_readonly(db, project.id, user.id, trusted_site)
+        refresh_connected(db, project.id, user.id, trusted_site)
     except FreshCoreError as exc:
         db.rollback()
         db.add(ProjectEvent(project_id=project.id, user_id=user.id,
@@ -663,7 +724,8 @@ def fresh_core_refresh(request: Request, project_id: int,
             quote(str(exc)[:240]), 303)
     return RedirectResponse(
         f'/projects/{project.id}?view=website&notice=' +
-        quote('Aktuální stav WordPressu byl znovu načten a bezpečně uložen.'), 303)
+        quote('Fresh Core data byla znovu ověřena a porovnána s předchozím stavem.') +
+        '#fresh-core-pripojeni', 303)
 
 
 @app.post('/projects/{project_id}/fresh-core/disconnect')
@@ -676,7 +738,7 @@ def fresh_core_disconnect(request: Request, project_id: int,
     disconnect_readonly(db, project.id, user.id)
     return RedirectResponse(
         f'/projects/{project.id}?view=website&notice=' +
-        quote('Fresh Core byl od Karla odpojen. Klíč odvolej také v administraci WordPressu.'),303)
+        quote('Fresh Core byl odpojen. Ve WordPressu obnov přístupové klíče nebo token manifestu.'),303)
 
 
 @app.post('/projects/{project_id}/edit')

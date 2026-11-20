@@ -40,6 +40,12 @@ def compare_snapshots(before: dict | None, after: dict) -> dict:
             "Fresh Core REST snapshot neověřuje veřejné HTML, jednotlivé funkcionality ani obsah všech stránek.",
         ],
     }
+    if after.get("manifest_legacy"):
+        audit["limitations"].append("Statický export nemá potvrzení úplné dávky.")
+    if (after.get("coverage") or {}).get("manifest_stale"):
+        audit["limitations"].append(
+            "Manifest je starší než 48 hodin; aktualizované webové změny v něm nemusejí být."
+        )
     if not before:
         return audit
 
@@ -130,6 +136,19 @@ def compare_snapshots(before: dict | None, after: dict) -> dict:
             elif old_map[item_id] != new_map[item_id]:
                 add(area, item_id, old_map[item_id], new_map[item_id])
 
+    if "manifest_hashes" in before and "manifest_hashes" in after:
+        for filename, digest in (after["manifest_hashes"] or {}).items():
+            previous = (before["manifest_hashes"] or {}).get(filename)
+            if previous and previous != digest:
+                add("manifest", filename, previous[:16], str(digest)[:16],
+                    "info")
+
+    if "diagnostics" in before and "diagnostics" in after:
+        for taxonomy, info in (after["diagnostics"] or {}).items():
+            old = (before["diagnostics"] or {}).get(taxonomy)
+            if isinstance(old, dict) and old != info:
+                add("diagnostics", taxonomy, old, info, "warning")
+
     for key, label in (
         ("menu_count", "Počet menu"),
         ("elementor_document_count", "Elementor dokumenty"),
@@ -137,6 +156,14 @@ def compare_snapshots(before: dict | None, after: dict) -> dict:
         if key in before and key in after and before[key] != after[key]:
             add("counts", label, before[key], after[key])
 
+    if after.get("manifest_legacy"):
+        audit["limitations"].append(
+            "Statický manifest nemá dávkovou značku dokončení; ověřena jen dostupná metadata a jednotlivé soubory."
+        )
+    if (after.get("coverage") or {}).get("manifest_stale"):
+        audit["limitations"].append(
+            "Statický manifest je starší než 48 hodin; aktuální nasazené změny v něm nemusí být."
+        )
     audit["change_count"] = len(changes)
     audit["changes"] = changes[:MAX_CHANGES]
     if len(changes) > MAX_CHANGES:

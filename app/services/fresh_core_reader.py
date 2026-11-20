@@ -7,7 +7,6 @@ No redirects, private network targets or unapproved hosts.
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -16,6 +15,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from ..config import settings
+from .fresh_core_vault import active_key, is_ready, VaultUnavailable
 from .project_journeys import validate_site_url
 from .source_resolver import _require_trusted_host, _validate_public_url
 
@@ -32,41 +32,38 @@ class FreshCoreError(ValueError):
 
 
 def vault_ready() -> bool:
-    """Explicit stable key, separate from session APP_SECRET and rotation."""
-    raw = str(getattr(settings, "fresh_core_vault_key", "") or "").strip()
-    if len(raw) != 44:
-        return False
-    try:
-        return len(base64.urlsafe_b64decode(raw.encode("ascii"))) == 32
-    except (UnicodeError, ValueError):
-        return False
+    return is_ready()
 
 
-def _fernet():
-    if not vault_ready():
-        raise FreshCoreError(
-            "Správce musí na serveru nastavit trvalý FRESH_CORE_VAULT_KEY "
-            "a bezpečně ho zálohovat. Dokud chybí, přístupové klíče neukládáme."
-        )
+def _fernet(*, create: bool = False):
     from cryptography.fernet import Fernet
-    return Fernet(settings.fresh_core_vault_key.strip().encode("ascii"))
+    try:
+        return Fernet(active_key(create=create).encode("ascii"))
+    except VaultUnavailable as exc:
+        raise FreshCoreError(str(exc)) from exc
+
+
+def seal_secret(secret: str, *, limit: int = 1800) -> str:
+    value = str(secret or "").strip()
+    if not value or len(value) > limit or any(ord(ch) < 33 or ord(ch) == 127 for ch in value):
+        raise FreshCoreError("Neplatný nebo příliš dlouhý klíč/konektor.")
+    return _fernet(create=True).encrypt(value.encode("utf-8")).decode("ascii")
 
 
 def seal_key(read_key: str) -> str:
-    value = (read_key or "").strip()
-    if not value or len(value) > 300 or any(ord(c) < 33 or ord(c) > 126 for c in value):
-        raise FreshCoreError("Zadej platný Fresh Core REST klíč (Access Key).")
-    return _fernet().encrypt(value.encode("ascii")).decode("ascii")
+    value = str(read_key or "").strip()
+    if len(value) > 300 or any(ord(c) > 126 for c in value):
+        raise FreshCoreError("Zadej platný Fresh Core REST klíč.")
+    return seal_secret(value, limit=300)
 
 
 def unseal_key(encrypted: str) -> str:
     from cryptography.fernet import InvalidToken
     try:
-        return _fernet().decrypt((encrypted or "").encode("ascii")).decode("ascii")
+        return _fernet().decrypt((encrypted or "").encode("ascii")).decode("utf-8")
     except (InvalidToken, ValueError, UnicodeError) as exc:
         raise FreshCoreError(
-            "Uložený klíč nelze bezpečně přečíst. Ověř konfiguraci vaultu "
-            "nebo obnov propojení Fresh Core."
+            "Uložený klíč nelze bezpečně přečíst. Ověř trezor nebo obnov propojení."
         ) from exc
 
 
@@ -81,10 +78,11 @@ def validate_fresh_core_site(url: str) -> str:
                 "Pro první propojení zadej adresu WordPressu bez cesty, "
                 "například https://mujweb.cz."
             )
-        _require_trusted_host(
-            site, getattr(settings, "fresh_core_allowed_hosts", ""),
-            "FRESH_CORE_ALLOWED_HOSTS",
-        )
+        # An explicitly approved project site is the primary boundary.
+        # A configured global allowlist remains an optional further restriction.
+        host_policy = str(getattr(settings, "fresh_core_allowed_hosts", "") or "").strip()
+        if host_policy:
+            _require_trusted_host(site, host_policy, "FRESH_CORE_ALLOWED_HOSTS")
         _validate_public_url(site)
         return site.rstrip("/")
     except FreshCoreError:

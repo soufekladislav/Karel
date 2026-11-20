@@ -1,6 +1,6 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.34-fresh-core-read-audit`.**
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35-fresh-core-manifest-link`.**
 Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
 
 ## Vývojový režim (rozhodnutí 20. 11. 2026)
@@ -10,15 +10,15 @@ Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav
 
 ## Současné schopnosti a omezení
 - GitHub: ruční READ snapshot / import a základní přehled Issues, PR a CI. Kompletní dokumentace/obsah souborů, Projects v2 a delta synchronizace jsou stále rozpracované (#20).
-- Fresh Core: READ-only `ping` → `snapshot`, šifrovaný projektový Access Key, rozšířená inventura WordPressu a porovnání dvou úspěšně načtených stavů. **Není** implementováno úplné čtení statického batch manifestu, runtime PHP/JS diagnostika ani WordPress zápisy (#19).
+- Fresh Core: **dva způsoby READ** – přímý REST Access Key nebo soukromá Connector Manifest URL jako v Bobanovi. Manifest se ověří (identita webu, dokončení dávky, kontrolní součty vybraných souborů), zašifruje a automaticky nastaví projektovou URL. Inventura a diff změn jsou dostupné v kartě webu i chatu. Samostatný Write Key lze ověřit pouze přes `GET /write/ping`; skutečné zápisy do WP nejsou povoleny. Celý obsah exportů, runtime PHP/JS diagnostika a obecné editace pluginů dosud nejsou hotové (#19).
 - Karel je projektový manažer, nikoli automatický vývojář ani nástroj s neomezeným přístupem do WordPressu.
 
 ## Nasazení aktuálního `main` na Exon
 1. Zálohovat serverovou DB, `storage/`, uživatelské soubory, `.env` a konfigurační klíče mimo webový root. **Nesmazat serverová data `storage/` při přechodu:** historické testovací soubory byly z GitHubu odstraněny a nyní jsou ignorovány.
 2. Nasadit kompletní ověřený commit z `main`, nikoli jednotlivé soubory; zachovat serverovou `.env`, nainstalovat nové Python dependencies do správného Passenger virtualenv.
 3. Ověřit kompatibilitu databáze, bezpečnostní konfiguraci a migraci podle [Exon provozní akceptace](docs/EXON_PRODUCTION_ACCEPTANCE.md); restartovat Passenger.
-4. Ve skutečné serverové konfiguraci nastavit bezpečný stálý `FRESH_CORE_VAULT_KEY` (nepřepisovat existující), `FRESH_CORE_ALLOWED_HOSTS` jen pro povolené weby. Klíče nikdy do chatu, URL ani GitHubu.
-5. Ověřit skutečnou verzi `alpha.34`, login, projekt, GitHub a čtecí spojení Fresh Core na kontrolovaném WordPressu včetně opakovaného refresh a změnové kontroly.
+4. Fresh Core vault: stávající `FRESH_CORE_VAULT_KEY` **zachovat**; pokud není nastaven, Karel vytvoří bezpečný 0600 klíč v domovském adresáři účtu při prvním propojení. `FRESH_CORE_ALLOWED_HOSTS` zůstává nepovinný přísnější whitelist. Nový klíč či URL manifestu nikdy nevkládat do chatu nebo GitHubu.
+5. Ověřit skutečnou verzi `alpha.35`, login, projekt, GitHub a připojení existujícího Fresh Core přes manifest (bez nutnosti REST klíče), poté obnovu a změnovou kontrolu. Podrobný návod: [Fresh Core manifest a Write Key](docs/FRESH_CORE_MANIFEST_CONNECTION_2026-11-20.md).
 
 **GitHub CI není důkaz produkční funkčnosti.** Na Exon zatím z tohoto repozitáře automaticky nic nenasazujeme.
 
@@ -26,6 +26,7 @@ Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav
 - [Produktová specifikace](docs/PRODUCT_SPECIFICATION.md)
 - [Architektura a synchronizace](docs/ARCHITECTURE_AND_SYNCHRONIZATION.md)
 - [Realizační plán](docs/IMPLEMENTATION_PLAN.md)
+- [Fresh Core manifest + Write Key alpha.35](docs/FRESH_CORE_MANIFEST_CONNECTION_2026-11-20.md)
 - [Fresh Core READ audit alpha.34](docs/FRESH_CORE_READ_AUDIT_2026-11-20.md)
 - [Pravidla pro Codex/AI](AGENTS.md)
 

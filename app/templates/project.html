@@ -121,12 +121,12 @@
       {% endif %}
       {% if can_edit %}
       <details class="karel-website-url-edit">
-        <summary>{{ 'Upravit adresu webu' if website_url else 'Doplnit adresu webu' }}</summary>
+        <summary>{{ 'Upravit adresu webu' if website_url else 'Doplnit adresu webu (nebo připojit manifest níže)' }}</summary>
         <form method="post" action="/projects/{{ project.id }}/website-url">
           <label>Adresa WordPress webu
             <input name="website_url" required maxlength="300" inputmode="url" placeholder="mujweb.cz" value="{{ website_url }}">
           </label>
-          <p>Jde pouze o adresu, kterou uvádíš. Karel bez ověřeného spojení web nenavštěvuje ani nemění.</p>
+          <p>Adresu můžeš uložit samostatně, nebo ji Karel převezme z ověřeného manifestu. Samotné uložení adresy není připojením.</p>
           <button type="submit" class="btn primary small">Uložit adresu</button>
         </form>
       </details>
@@ -207,25 +207,76 @@
             </div>
           </details>
         {% else %}
-          <p>K propojení potřebujeme pouze <strong>REST klíč pro čtení</strong> ze sekce Fresh Core → Konektory a oprávnění ve WordPressu „REST konektor: Povolit“. Nepoužívej Write Key, účetní klíč ani URL manifestu. Karel klíč na serveru šifruje a ověřuje skutečné čtecí REST API.</p>
-          {% if not core_state.vault_ready or not core_state.hosts_ready %}
-          <p class="karel-connector-warning"><strong>Na WordPressu není potřeba plugin znovu instalovat.</strong> Čtení zatím blokuje nastavení Karla na Exonu.
-            {% if not core_state.vault_ready %}Chybí zabezpečené úložiště klíčů (FRESH_CORE_VAULT_KEY).{% endif %}
-            {% if not core_state.hosts_ready %}Chybí seznam povolených domén WordPressu (FRESH_CORE_ALLOWED_HOSTS).{% endif %}
-            Dokud správce nezajistí obě podmínky, Karel nebude přijímat přístupové klíče.
-          </p>
-          {% elif can_manage %}
-          <form class="karel-freshcore-form" method="post" action="/projects/{{ project.id }}/fresh-core/connect">
-            <label>Fresh Core Access Key – pouze pro čtení
-              <input name="access_key" type="password" required autocomplete="off" maxlength="300" placeholder="Klíč z Fresh Core → Konektory">
-            </label>
-            <small>Zadává se sem, nikdy do chatu. Klíč nebude zobrazen zpět; po ověření ho Karel uloží šifrovaně.</small>
-            <button class="btn primary" type="submit">Ověřit spojení a načíst web</button>
-          </form>
-          {% else %}
-          <p>Ověřovací klíč může připojit pouze vlastník nebo správce projektu.</p>
-          {% endif %}
+          <p>Karel zatím nemá ověřené podklady tohoto WordPressu. Pro první spojení stačí
+             <strong>Connector Manifest URL</strong> ze stávajícího Fresh Core, stejně jako u Bobana.
+             Žádný další plugin neinstaluj.</p>
         {% endif %}
+        {% if can_manage %}
+          <section class="karel-connector-truth" style="margin-top:16px">
+            <h4>1. Fresh Core – čtení z manifestu</h4>
+            {% if core_state.read_mode == 'manifest' and core_state.kind == 'synced' %}
+              <p>Manifest je ověřený a bezpečně uložený. Jeho tajnou URL z bezpečnostních důvodů nezobrazujeme.</p>
+            {% else %}
+              <p>Vlož úplnou adresu <code>manifest.json</code> ze statického konektoru Fresh Core.
+                 Karel ověří doménu, strukturu a kontrolní součty načtených souborů.
+                 Pokud jsi dosud neuložil adresu webu, Karel ji převezme z ověřeného manifestu.</p>
+            {% endif %}
+            <form class="karel-freshcore-form" method="post"
+                  action="/projects/{{ project.id }}/fresh-core/manifest-connect">
+              <label>Connector Manifest URL (tajná adresa pro čtení)
+                <input name="manifest_url" type="password" autocomplete="off" required maxlength="1700"
+                       placeholder="https://web.cz/wp-content/uploads/fresh-core-connector/…/manifest.json">
+              </label>
+              <small>Adresa se uloží šifrovaně na serveru, ne do chatu ani do logu.
+                     Změna manifestu nezpůsobí žádný zápis na web.</small>
+              <button type="submit" class="btn primary">Připojit a ověřit manifest</button>
+            </form>
+          </section>
+          <details class="fresh-detail" style="margin-top:14px">
+            <summary>Alternativa: čtení přes REST Access Key</summary>
+            <div class="fresh-detail-body">
+              <p>REST čtení vyžaduje ve WordPressu povolený Fresh Core REST konektor.
+                 Pokud chceš používat přímé REST místo statického manifestu, zadej pouze READ Access Key.</p>
+              {% if website_url %}
+              <form class="karel-freshcore-form" method="post"
+                    action="/projects/{{ project.id }}/fresh-core/connect">
+                <label>Fresh Core REST Access Key
+                  <input name="access_key" type="password" required autocomplete="off" maxlength="300"
+                         placeholder="Čtecí Access Key">
+                </label>
+                <button type="submit" class="btn secondary">Ověřit REST a načíst WordPress</button>
+              </form>
+              {% else %}
+              <p>Pro REST čtení nejdřív ulož adresu webu nahoře. Připojení přes manifest ji doplní automaticky.</p>
+              {% endif %}
+            </div>
+          </details>
+          {% if core_state.kind == 'synced' %}
+          <section class="karel-connector-truth" style="margin-top:16px">
+            <h4>2. Fresh Core – oprávnění ke změnám (pouze ověření)</h4>
+            {% if core_state.write_verified %}
+            <p><strong>Write Key ověřen.</strong> Poslední úspěšná kontrola:
+               {{ core_state.write_status.checked_at }}.
+               Karel zatím nic nepublikuje ani nemění.</p>
+            {% else %}
+            <p>Pokud máš ve WordPressu aktivovaný Write bridge, můžeš ověřit jeho samostatný klíč.
+               Použije se výhradně <code>GET /write/ping</code>. <strong>Žádná změna webu se neodešle.</strong></p>
+            {% endif %}
+            <form class="karel-freshcore-form" method="post"
+                  action="/projects/{{ project.id }}/fresh-core/write-verify">
+              <label>Fresh Core Write Key (samostatný klíč pro změny)
+                <input name="write_key" type="password" autocomplete="off" required maxlength="300"
+                       placeholder="Write bridge key z WordPressu">
+              </label>
+              <button type="submit" class="btn secondary">Ověřit zapisovací oprávnění</button>
+            </form>
+          </section>
+          {% endif %}
+          {% if not core_state.vault_ready %}
+          <p class="karel-connector-warning">Při prvním propojení si Karel může vytvořit privátní trezor
+             mimo webovou složku. Pokud jej hosting nepovolí, zobrazí konkrétní chybu a správce nastaví
+             <code>FRESH_CORE_VAULT_KEY</code> v konfiguraci. Již existující klíče nepřepisujeme.</p>
+          {% endif %}
         {% if core_state.has_key and can_manage %}
         <details class="karel-connector-disconnect">
           <summary>Odpojit WordPress od Karla</summary>
