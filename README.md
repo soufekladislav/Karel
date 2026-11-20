@@ -1,7 +1,9 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35-fresh-core-manifest-link`.**
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.1-fresh-core-manifest-route`.**
 Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
+
+**Oprava starých formulářů (20. 11. 2026):** WordPress Fresh Core `manifest.json` vložený i do staršího formuláře „Manifest projektu / aplikace“ je bezpečně rozpoznán a předán `/fresh-core/manifest-connect`. Zapisuje se pouze šifrovaná URL a ověřené READ údaje. Po úspěchu nebo chybě se uživatel vrací na `?view=website#fresh-core-pripojeni`, nikoli do chatu. Obecné manifesty jiných aplikací nadále používají původní cestu. Podrobnosti v [Issue #19](https://github.com/soufekladislav/Karel/issues/19).
 
 ## Vývojový režim (rozhodnutí 20. 11. 2026)
 - **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.
