@@ -693,3 +693,15 @@ html,body{font-family:Poppins,Arial,sans-serif;font-size:14px;line-height:1.6}
     position:sticky;top:0;z-index:15
   }
 }
+
+/* Proposed schedule revision: obvious approval surface within Pipeline */
+.karel-timeline-pending{background:#f5f9e9;border:1px solid #d8e6bc;border-radius:12px;padding:15px 17px;margin:0 0 19px;color:#263518}
+.karel-timeline-pending-head{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.karel-timeline-pending-head strong{font-size:14px}
+.karel-timeline-pending-head p{font-size:12px;margin:7px 0 0;line-height:1.6}
+.karel-timeline-pending-head form{margin:0;flex-shrink:0}
+.karel-timeline-pending details{font-size:12px;margin-top:13px;line-height:1.6}
+.karel-timeline-pending summary{font-weight:700;cursor:pointer}
+.karel-pending-dates{display:grid;gap:5px;margin:10px 0}
+.karel-pending-dates>div{display:flex;justify-content:space-between;gap:15px;border-bottom:1px solid #dce9c9;padding:5px 0}
+@media(max-width:760px){.karel-timeline-pending-head{display:block}.karel-timeline-pending-head form{margin-top:12px}.karel-timeline-pending-head button{width:100%}}

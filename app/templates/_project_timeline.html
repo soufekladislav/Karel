@@ -1,6 +1,31 @@
 {# Milestones are deliverables, not seven governing stages. Only approved rows can
    be considered contractual or overdue; read-only GitHub proposal is a draft. #}
 <section class="karel-timeline" id="project-timeline" aria-label="Projektový harmonogram">
+  {% if pending_schedule %}
+  <div class="karel-timeline-pending" role="status">
+    <div class="karel-timeline-pending-head">
+      <div>
+        <strong>Čeká na tvé schválení: nový harmonogram</strong>
+        <p>Navržený termín testovací verze: <b>{{ pending_schedule.target_date }}</b>. Dosud zobrazený plán se do schválení nezměnil.</p>
+      </div>
+      {% if can_edit %}
+      <form method="post" action="/projects/{{ project.id }}/chat/{{ pending_schedule.chat_id }}/actions/approve">
+        <button class="btn primary small" type="submit">Schválit nové termíny</button>
+      </form>
+      {% endif %}
+    </div>
+    <details>
+      <summary>Zobrazit všech 7 navržených termínů a přejít do diskuze</summary>
+      <div class="karel-pending-dates">
+        {% for milestone in pending_schedule['items'] %}
+        <div><span>{{ milestone.id }} · {{ milestone.title }}</span><strong>{{ milestone.due_date }}</strong></div>
+        {% endfor %}
+      </div>
+      <a href="/projects/{{ project.id }}?view=chat&chat_id={{ pending_schedule.chat_id }}">Otevřít návrh v chatu</a>
+      <p>Schválení uloží termíny do Karla. Zápis do GitHub Issues nebo Projects zatím neproběhne.</p>
+    </details>
+  </div>
+  {% endif %}
   <div class="karel-timeline-head">
     <div>
       <span class="eyebrow">ŘÍZENÍ TERMÍNŮ A MILNÍKŮ</span>

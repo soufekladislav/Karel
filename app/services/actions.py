@@ -243,16 +243,21 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
         import re
         source_sha = str(payload.get('source_commit_sha') or '')
         source_repo = str(payload.get('repo') or '')
-        if payload.get('source') != 'github_verified_document':
-            raise ValueError('Harmonogram nemá ověřený GitHub zdroj.')
-        if source_repo != 'soufekladislav/Karel' or not re.fullmatch(
+        source_type = str(payload.get('source') or '')
+        if source_type not in ('github_verified_document', 'user_chat_replan'):
+            raise ValueError('Harmonogram nemá schválitelný zdroj.')
+        if source_repo != 'soufekladislav/Karel':
+            raise ValueError('Návrh nepatří k repozitáři tohoto projektu.')
+        if source_type == 'github_verified_document' and not re.fullmatch(
                 r'[a-f0-9]{40}', source_sha):
             raise ValueError('Chybí ověřená identita GitHub revize.')
         if ' '.join((project.name or '').casefold().split()) not in (
                 'karel', 'developer karel'):
             raise ValueError('Návrh nepatří tomuto projektu.')
-        milestones = normalize_milestones(payload.get('milestones'))
-        if len(milestones) != len(payload.get('milestones') or []) or len(milestones) < 2:
+        if not isinstance(payload.get('milestones'), list):
+            raise ValueError('Harmonogram nemá validní seznam milníků.')
+        milestones = normalize_milestones(payload['milestones'])
+        if len(milestones) != len(payload['milestones']) or len(milestones) < 2:
             raise ValueError('Zadaný harmonogram není validní.')
         old = db.scalar(select(ProjectMemory).where(
             ProjectMemory.project_id == project.id,
@@ -262,16 +267,41 @@ def execute_pending_action(db: Session, project: Project, row: ProjectMemory, us
         if old:
             try: old_doc = json.loads(old.content)
             except (ValueError, TypeError): pass
+        if source_type == 'user_chat_replan':
+            # Prevent stale chat proposals from overwriting a newer approved
+            # baseline. The user must review a fresh diff instead.
+            try:
+                expected_row = int(payload['baseline_approved_row_id'])
+            except (KeyError, ValueError, TypeError):
+                raise ValueError('Chybí verze původního schváleného harmonogramu.')
+            if expected_row != (old.id if old else 0):
+                raise ValueError(
+                    'Od vytvoření návrhu byl harmonogram změněn. '
+                    'Nejprve připrav nový návrh proti aktuálním datům.')
+            target = str(payload.get('target_test_date') or '')
+            try:
+                from datetime import date
+                due = date.fromisoformat(target)
+            except (ValueError, TypeError):
+                raise ValueError('Není platně určen cílový termín testovací verze.')
+            milestone = next((m for m in milestones if m['id'] == 'M4'), None)
+            if not milestone or milestone['due_date'] != due.isoformat():
+                raise ValueError('Cílové datum se neshoduje s milníkem M4.')
+            if {m['id'] for m in milestones} != {f'M{i}' for i in range(7)}:
+                raise ValueError('Přeplánování musí zahrnovat všech sedm milníků.')
         if (old_doc.get('milestones') == milestones and
-                old_doc.get('source_commit_sha') == source_sha):
+                old_doc.get('source') == source_type and
+                old_doc.get('source_commit_sha', '') == source_sha):
             version = int(old_doc.get('version') or 1)
             change = False
         else:
             version = int(old_doc.get('version') or 0) + 1
             doc = {
                 'version': version, 'milestones': milestones,
-                'source': 'github_verified_document',
+                'source': source_type,
                 'source_commit_sha': source_sha,
+                'baseline_source': str(payload.get('base_source') or ''),
+                'target_test_date': str(payload.get('target_test_date') or ''),
                 'source_url': str(payload.get('source_url') or '')[:400],
                 'approved_at': datetime.utcnow().isoformat(),
                 'approved_by_user_id': user_id,

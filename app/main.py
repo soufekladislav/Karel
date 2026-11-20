@@ -57,6 +57,7 @@ from .services.github_bulk_import import discover_repositories, prepare_import_p
 from .services.workflow import get_stages, alerts as workflow_alerts, context as workflow_context, STATUSES as STAGE_STATUSES
 from .services.project_timeline import load_project_timeline
 from .services.github_schedule import is_schedule_request, read_live_karel_schedule, preview_schedule, ScheduleReadError
+from .services.project_schedule_replan import is_replan_request, prepare_replan, preview_replan, ReplanError
 from .bootstrap import initialize_app, bootstrap_state
 
 app = FastAPI(title='Karel 2.0')
@@ -124,7 +125,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.36.3-github-schedule-approval'
+APP_VERSION = '2.0.0-alpha.36.4-conversational-schedule-replan'
 
 
 PROJECT_SPEC_KINDS = {
@@ -530,6 +531,27 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         db, p, is_admin=is_superadmin(u),
         linked_repo=github_link.repository_full_name if github_link else None,
     )
+    # Make a pending timeline revision visible right on Pipeline even when
+    # the proposal was created in a different chat of the same project.
+    pending_schedule=None
+    for pending_row in pending_group(db, p.id):
+        pending_data=parse_pending(pending_row)
+        if pending_data.get('type')!='approve_project_schedule':
+            continue
+        proposal_payload=pending_data.get('payload') or {}
+        source_message=db.get(Message, pending_data.get('source_message_id')) if (
+            pending_data.get('source_message_id')) else None
+        source_chat=db.get(Chat, source_message.chat_id) if source_message else None
+        if source_chat and source_chat.project_id==p.id:
+            pending_items=proposal_payload.get('milestones') or []
+            target=proposal_payload.get('target_test_date') or next((
+                item.get('due_date') for item in pending_items
+                if isinstance(item,dict) and item.get('id')=='M4'), '')
+            pending_schedule={
+                'chat_id': source_chat.id, 'target_date': target,
+                'items': pending_items, 'kind': proposal_payload.get('source'),
+            }
+        break
     project_scope_preview=brief(spec.get('project_scope'),155,'Rozsah zatím nebyl popsán.')
     document_memories=[m for m in memories if m.kind in ('specification','documentation','decision','architecture','standard','fact','note')]
     project_has_activity = bool(
@@ -557,7 +579,7 @@ def project_view(request: Request, project_id: int, chat_id: int|None=None, view
         github_status=github_status,github_link=github_link,project_focus=project_focus,
         project_goal_preview=project_goal_preview,project_scope_preview=project_scope_preview,project_has_activity=project_has_activity,
         project_mode=project_mode_name,project_journey=project_journey,
-        project_timeline=project_timeline,
+        project_timeline=project_timeline,pending_schedule=pending_schedule,
         website_url=website_url,core_state=core_state,
         can_import_portfolio=is_superadmin(u),
         project_people=project_people(db,p),project_spec=spec,stages=stages,stage_alerts=stage_alerts,stage_statuses=STAGE_STATUSES,document_memories=document_memories,task_groups=task_groups,fresh_link=fresh_link,fresh_key_error=fresh_error,fresh_key_requests=fresh_requests,manifest_info=manifest_info,proposals=proposals,pending_action_data=pending_action_data,latest_pending_ids=latest_pending_ids,
@@ -943,6 +965,49 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     if superseded:
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_not_approved',detail='Neschváleno – diskuze pokračovala.'))
         db.flush()
+
+    # Schedule changes discussed in chat must NOT fall through the generic
+    # "save project_plan text" planner. Reconstruct a date from recent user
+    # messages, calculate a complete milestone diff, and require approval.
+    if not attachment_meta and is_replan_request(user_msg.content):
+        try:
+            old_timeline = load_project_timeline(
+                db, p, is_admin=is_superadmin(u),
+                linked_repo='soufekladislav/Karel'
+                if ' '.join((p.name or '').casefold().split()) in
+                ('karel', 'developer karel') else None,
+            )
+            schedule = prepare_replan(db, p, c, u, user_msg)
+            action = create_pending_action(
+                db, p.id, {
+                    'type': 'approve_project_schedule',
+                    'title': 'Schválit nové termíny harmonogramu',
+                    'payload': schedule,
+                }, source_message_id=user_msg.id,
+            )
+            if action is None:
+                raise ReplanError('Návrh harmonogramu se nepodařilo připravit.')
+            answer = preview_replan(schedule, old_timeline['items'])
+            db.add(ProjectEvent(
+                project_id=p.id, user_id=u.id,
+                event_type='project_schedule_replan_proposed',
+                detail=json.dumps({
+                    'target_test_date': schedule['target_test_date'],
+                    'milestones': len(schedule['milestones']),
+                    'source': schedule['base_source'],
+                }, ensure_ascii=False),
+            ))
+        except ReplanError as exc:
+            answer = 'Termíny jsem nezměnil: ' + str(exc)
+            db.add(ProjectEvent(
+                project_id=p.id, user_id=u.id,
+                event_type='project_schedule_replan_failed',
+                detail=str(exc)[:350],
+            ))
+        db.add(Message(chat_id=c.id, user_id=None, role='assistant', content=answer))
+        c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow()
+        db.commit()
+        return RedirectResponse(destination+anchor, 303)
 
     # A request to prepare a project timeline from GitHub is a real source
     # operation, not a generic LLM answer. Verify the HEAD and source blob,
