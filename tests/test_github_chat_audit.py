@@ -151,6 +151,14 @@ class GitHubAuditChatTests(unittest.TestCase):
         self.assertIn("starší snímek", reply)
         self.assertIn("GitHub 429", reply)
 
+    def test_role_superadmin_bootstraps_even_with_different_configured_email(self):
+        self.user.role = "superadmin"
+        self.db.commit()
+        with patch.object(settings, "superadmin_email", "different-admin@example.cz"):
+            repo, source = repository_for_project(self.db, self.project, self.user)
+        self.assertEqual(repo, REPO)
+        self.assertEqual(source, "self_project")
+
     def test_non_admin_cannot_bootstrap_other_project_from_name(self):
         with patch.object(settings, "superadmin_email", "realadmin@example.cz"):
             repo, state = repository_for_project(self.db, self.project, self.user)

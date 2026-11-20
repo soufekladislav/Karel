@@ -57,8 +57,10 @@ def is_audit_request(query: str) -> bool:
 
 def _superadmin(user: User) -> bool:
     email = str(getattr(user, "email", "") or "").strip().casefold()
-    return bool(settings.superadmin_email and
-                email == settings.superadmin_email.strip().casefold())
+    return bool(getattr(user, "role", "") == "superadmin" or (
+        settings.superadmin_email and
+        email == settings.superadmin_email.strip().casefold()
+    ))
 
 
 def repository_for_project(db, project: Project, user: User) -> tuple[str | None, str]:
