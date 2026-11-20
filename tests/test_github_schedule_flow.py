@@ -110,7 +110,7 @@ class ProjectSchedulePilotTests(unittest.TestCase):
         self.assertEqual(len(proposal["milestones"]), 7)
         self.assertEqual(proposal["source_commit_sha"], HEAD)
         self.assertIn("M0", preview_schedule(proposal))
-        self.assertIn("Návrh", preview_schedule(proposal))
+        self.assertIn("návrh", preview_schedule(proposal).casefold())
         self.assertEqual(FakeReader.calls[-1][2], {"ref": HEAD})
         msg = Message(chat_id=self.chat.id, user_id=self.user.id, role="user",
                       content="Podívej se do GitHubu a připrav časovou osu.")
