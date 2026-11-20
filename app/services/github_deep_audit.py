@@ -215,11 +215,26 @@ def review_branches(db, project: Project, user: User, *, reader_factory=GitHubRe
             if not isinstance(comp, dict):
                 lines.append(name + ": porovnání není dostupné (NEVERIFIED)")
                 continue
+            head_sha = str((branch.get("commit") or {}).get("sha") or "")
+            ci = "neověřeno"
+            if re.fullmatch(r"[0-9a-fA-F]{40}", head_sha):
+                checks = reader._request(
+                    "GET", path + "/commits/" + head_sha + "/check-runs",
+                    params={"per_page": 25}, optional=True)
+                if isinstance(checks, dict) and isinstance(checks.get("check_runs"), list):
+                    runs = checks["check_runs"]
+                    if runs:
+                        ci = ", ".join(
+                            str(x.get("name") or "test") + ":" +
+                            str(x.get("conclusion") or x.get("status") or "?")
+                            for x in runs[:5])
+                    else:
+                        ci = "na této revizi nebyly dohledány check runy"
             lines.append(name + " | status " + str(comp.get("status")) +
                          ", ahead " + str(comp.get("ahead_by")) +
                          ", behind " + str(comp.get("behind_by")) +
                          ", souborů s rozdílem " + str(len(comp.get("files") or [])) +
-                         ". NEODSTRAŇOVAT bez schválení.")
+                         ", CI: " + ci + ". NEODSTRAŇOVAT bez schválení.")
     lines.append("Interpretuj ahead=0 jako bez vlastních commitů oproti main; "
                  "diverged vyžaduje detailní kontrolu obsahu. "
                  "Neslučuj ani nemaž žádné větve. Pokud je seznam větví přes 25, "

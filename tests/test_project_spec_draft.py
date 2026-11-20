@@ -45,10 +45,20 @@ class ProjectSpecDraftTests(unittest.TestCase):
     def test_original_user_command_triggers_structured_draft(self):
         self.assertTrue(is_spec_request("Sestav a ulož zadání Karla, ať máme popsán cílový stav."))
         self.assertTrue(is_spec_request("Připrav vývojový plán projektu."))
+        self.assertTrue(is_spec_request("Sestav mi priority projektu a milníky."))
         self.assertFalse(is_spec_request("Ukaž mi seznam úkolů."))
 
     def test_collects_other_project_chats(self):
         self.assertIn("řídil celý vývoj", sources(self.db, self.project))
+
+    def test_reuses_assistant_draft_only_as_unverified_proposal(self):
+        self.db.add(Message(chat_id=self.other_chat.id, user_id=None,
+                            role="assistant", content="### Návrh zadání projektu: "
+                            + "Prioritou je řídit pipeline, GitHub a testování. " * 7))
+        self.db.commit()
+        source = sources(self.db, self.project)
+        self.assertIn("PŘEDCHOZÍ NÁVRH ASISTENTA", source)
+        self.assertIn("NEOVĚŘENÝ", source)
 
     def test_rejects_unstructured_or_incomplete_engine_output(self):
         for raw in ("Všechno jsem uložil", '{"purpose":"x"}', "[]"):

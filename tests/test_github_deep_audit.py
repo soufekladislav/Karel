@@ -26,6 +26,9 @@ class FakeReader:
             return {"default_branch": "main"}
         if "/compare/" in endpoint:
             return {"status": "behind", "ahead_by": 0, "behind_by": 4, "files": []}
+        if endpoint.endswith("/check-runs"):
+            return {"check_runs": [{"name": "test", "status": "completed",
+                                    "conclusion": "success"}]}
         filename = endpoint.rsplit("/", 1)[-1]
         if filename in ("main.py", "helpers.py"):
             data = ("def run():\n    return 'ready'\n" if filename == "main.py" else
@@ -34,7 +37,8 @@ class FakeReader:
                     "content": base64.b64encode(data).decode()}
         return None
     def pages(self, endpoint, *, limit=100, **kwargs):
-        return [{"name":"main"},{"name":"develop/karel-platform"}]
+        return [{"name":"main"},{"name":"develop/karel-platform",
+                                 "commit":{"sha":SHA}}]
 
 class GitHubDeepTests(unittest.TestCase):
     def setUp(self):
@@ -88,7 +92,9 @@ class GitHubDeepTests(unittest.TestCase):
         self.assertEqual(status,"live_branch_comparison")
         self.assertIn("develop/karel-platform",report)
         self.assertIn("ahead 0",report)
+        self.assertIn("test:success",report)
         self.assertTrue(any("/compare/" in c[1] for c in FakeReader.calls))
+        self.assertTrue(any("/check-runs" in c[1] for c in FakeReader.calls))
 
 if __name__ == "__main__":
     unittest.main()

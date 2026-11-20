@@ -61,7 +61,25 @@ def sources(db, project):
         budget -= len(block)
         chosen.append(block)
     parts.extend(reversed(chosen))
-    return "\n\n".join(parts)[-13500:]
+    # Earlier assistant drafts are potentially useful but never proof that
+    # a feature exists or a write was executed. Mark them explicitly as
+    # proposals and prefer the user's own statements above.
+    drafts = db.scalars(select(Message).join(Chat, Message.chat_id == Chat.id).where(
+        Chat.project_id == project.id, Message.role == "assistant"
+    ).order_by(Message.id.desc()).limit(45)).all()
+    selected_drafts = []
+    for row in drafts:
+        body = (row.content or "").strip()
+        if len(body) < 120 or not any(key in body.lower() for key in (
+                "zadání", "priorit", "milník", "funkční cel", "projektový plán")):
+            continue
+        selected_drafts.append(
+            "PŘEDCHOZÍ NÁVRH ASISTENTA (NEOVĚŘENÝ, NE DŮKAZ REALIZACE): " + body[:1100]
+        )
+        if len(selected_drafts) >= 3:
+            break
+    parts.extend(reversed(selected_drafts))
+    return "\n\n".join(parts)[-15500:]
 
 def prompt(project_name):
     return (
