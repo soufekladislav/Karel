@@ -9,7 +9,7 @@ import hashlib
 import html
 import re
 import httpx
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from fastapi import FastAPI, Request, Form, UploadFile, File, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
@@ -1549,6 +1549,13 @@ def library_delete(request:Request,item_id:int,db:Session=Depends(get_db)):
 def project_manifest_save(request:Request,project_id:int,url:str=Form(...),db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     url=url.strip()
+    # Older forms also accept Fresh Core manifests. They MUST use the
+    # dedicated encrypted connector instead of generic source imports:
+    # the token-bearing URL is a credential, not project documentation.
+    if '/fresh-core-connector/' in urlsplit(url).path.lower():
+        return fresh_core_manifest_connect(
+            request, project_id, manifest_url=url, db=db
+        )
     if not (url.startswith('https://') or url.startswith('http://')):
         return redirect_project(p.id,error='Manifest musí mít adresu začínající http:// nebo https://.')
     try:

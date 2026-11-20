@@ -455,7 +455,22 @@
         <a class="btn primary" href="/projects/{{ project.id }}?view=manage">Spravovat projekt</a>
       </section>
       <div class="source-grid">
-        <section class="source-card active-source"><div class="source-top"><div><span class="source-icon">{ }</span><h3>Manifest projektu / aplikace</h3></div><span class="cap-status {% if manifests %}active{% else %}planned{% endif %}">{% if manifests %}Aktivní{% else %}Nepřipojen{% endif %}</span></div><p>Manifest dává Karlovi technickou mapu funkcí, capability, verzí, konektorů a omezení. Karel ho používá při analýze, testování a hledání chyb.</p>{% if manifest_info %}<div class="manifest-meta"><div><span>SHA-256</span><code>{{ manifest_info.sha256 }}</code></div><div><span>Velikost</span><b>{{ manifest_info.size_bytes }} B</b></div></div><button class="btn secondary small" type="button" onclick="toggle('manifest-content')">Zobrazit celý uložený manifest</button><div id="manifest-content" class="manifest-content"><pre>{{ manifest_info.content }}</pre></div>{% endif %}{% if can_edit %}<form method="post" action="/projects/{{ project.id }}/manifest" class="source-form"><input type="url" name="url" required value="{{ manifests[0].title if manifests else '' }}" placeholder="https://.../manifest.json"><button class="btn primary small">{% if manifests %}Načíst a uložit znovu{% else %}Načíst a uložit{% endif %}</button></form>{% endif %}</section>
+        <section class="source-card active-source"><div class="source-top"><div><span class="source-icon">{ }</span><h3>Manifest projektu / aplikace</h3></div><span class="cap-status {% if manifests %}active{% else %}planned{% endif %}">{% if manifests %}Aktivní{% else %}Nepřipojen{% endif %}</span></div><p>Manifest dává Karlovi technickou mapu funkcí, capability, verzí, konektorů a omezení. Karel ho používá při analýze, testování a hledání chyb.</p>{% if manifest_info %}<div class="manifest-meta"><div><span>SHA-256</span><code>{{ manifest_info.sha256 }}</code></div><div><span>Velikost</span><b>{{ manifest_info.size_bytes }} B</b></div></div><button class="btn secondary small" type="button" onclick="toggle('manifest-content')">Zobrazit celý uložený manifest</button><div id="manifest-content" class="manifest-content"><pre>{{ manifest_info.content }}</pre></div>{% endif %}{% if can_edit %}
+        {% if project_mode == 'wordpress' %}
+          <p><strong>WordPress používá Fresh Core.</strong> Pro jeho manifest využij zabezpečené připojení, nikoli obecný projektový import.</p>
+          <form method="post" action="/projects/{{ project.id }}/fresh-core/manifest-connect" class="source-form">
+            <input type="password" name="manifest_url" required autocomplete="off" maxlength="1700"
+                   placeholder="Celá soukromá Connector Manifest URL z Fresh Core">
+            <button class="btn primary small" type="submit">Připojit Fresh Core</button>
+          </form>
+          <a class="karel-text-link" href="/projects/{{ project.id }}?view=website#fresh-core-pripojeni">Stav a diagnostika připojení WordPressu</a>
+        {% else %}
+          <form method="post" action="/projects/{{ project.id }}/manifest" class="source-form">
+            <input type="url" name="url" required value="{{ manifests[0].title if manifests else '' }}" placeholder="https://.../manifest.json">
+            <button class="btn primary small" type="submit">{% if manifests %}Načíst a uložit znovu{% else %}Načíst a uložit{% endif %}</button>
+          </form>
+        {% endif %}
+        {% endif %}</section>
         <section class="source-card"><div class="source-top"><div><span class="source-icon">WP</span><h3>Fresh Core</h3></div><span class="cap-status {% if core_state.kind == 'synced' %}active{% else %}planned{% endif %}">{{ core_state.label }}</span></div>
           <p>Čtecí konektor bezpečně načítá skutečný WordPress snapshot: verze, pluginy, typy obsahu, menu a Elementor. Přenos změn na web není aktivní.</p>
           {% if core_state.last_synced_at %}<p>Poslední načtení: {{ core_state.last_synced_at }}</p>{% endif %}
