@@ -1282,13 +1282,17 @@ async def retry_message(request:Request, project_id:int, chat_id:int, db:Session
 
 
 @app.post('/projects/{project_id}/chat/{chat_id}/actions/approve')
-def approve_chat_actions(request:Request, project_id:int, chat_id:int, db:Session=Depends(get_db)):
+def approve_chat_actions(request:Request, project_id:int, chat_id:int, return_view:str=Form('chat'), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
     rows=pending_group(db,p.id,chat_id=c.id)
     if not rows:
-        return RedirectResponse(f'/projects/{p.id}?view=chat&chat_id={c.id}&error='+quote('Není žádný aktuální návrh ke schválení.'),303)
+        where = (f'/projects/{p.id}?view=development'
+                 if return_view == 'development'
+                 else f'/projects/{p.id}?view=chat&chat_id={c.id}')
+        return RedirectResponse(where+'&error='+quote(
+            'Není žádný aktuální návrh ke schválení.'),303)
     batch=execute_pending_group(db,p,rows,u.id)
     db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_approved',detail=json.dumps(batch,ensure_ascii=False)[:1800]))
     notice='Schváleno a provedeno.' if batch.get('ok') else ('Schváleno, část změn se nepodařila provést.' if batch.get('partial') else 'Schválení se nepodařilo provést.')
@@ -1303,6 +1307,18 @@ def approve_chat_actions(request:Request, project_id:int, chat_id:int, db:Sessio
     elif typ=='update_project': label='Otevřít projekt'
     db.add(Message(chat_id=c.id,user_id=None,role='assistant',content=action_result_text(batch)))
     db.commit()
+    if return_view == 'development':
+        # A button embedded in Pipeline must return to the actual result,
+        # not unexpectedly redirect back into the long chat history.
+        if batch.get('ok') and typ == 'approve_project_schedule':
+            return RedirectResponse(
+                f'/projects/{p.id}?view=development&notice=' +
+                quote('Harmonogram byl schválen a uložen. GitHub Issues se nezměnily.') +
+                '#project-timeline',303)
+        first_error = (batch.get('errors') or [{}])[0].get('error') or notice
+        return RedirectResponse(
+            f'/projects/{p.id}?view=development&error=' +
+            quote(str(first_error)) + '#project-timeline',303)
     url=f'/projects/{p.id}?view=chat&chat_id={c.id}&notice='+quote(notice)
     if target_url:
         url += '&notice_url='+quote(target_url,safe='')+'&notice_label='+quote(label)

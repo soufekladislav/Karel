@@ -111,6 +111,31 @@ class ReplanTests(unittest.TestCase):
             "Chci testovací verzi do 20.12.2026", today=NOW),
             date(2026, 12, 20))
 
+    def test_invalid_legacy_proposal_approval_redirects_pipeline_with_error(self):
+        from app import main
+        msg = self._say(
+            "Máme v pipeline nastaveno do 29.1., chtěl bych to "
+            "opravit do 20.12.2026.")
+        payload = prepare_replan(
+            self.db, self.project, self.chat, self.user, msg, today=NOW)
+        payload["target_test_date"] = "2027-01-29"
+        for item in payload["milestones"]:
+            if item["id"] == "M4":
+                item["due_date"] = "2027-01-29"
+        create_pending_action(self.db, self.project.id, {
+            "type":"approve_project_schedule",
+            "title":"Nesprávný starý návrh",
+            "payload":payload}, source_message_id=msg.id)
+        self.db.commit()
+        with patch("app.main.require_user", return_value=self.user):
+            res = main.approve_chat_actions(
+                SimpleNamespace(), self.project.id, self.chat.id,
+                return_view="development", db=self.db)
+        self.assertEqual(res.status_code, 303)
+        self.assertIn("view=development&error=", res.headers["location"])
+        self.assertEqual(self.db.scalars(select(ProjectMemory).where(
+            ProjectMemory.kind == "project_schedule")).all(), [])
+
     def test_invalid_old_pending_has_no_approval_button(self):
         from app.services.project_schedule_replan import _chat_target
         from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -197,8 +222,11 @@ class ReplanTests(unittest.TestCase):
             "2026-12-20")
         with patch("app.main.require_user", return_value=self.user):
             approved = main.approve_chat_actions(
-                SimpleNamespace(), self.project.id, self.chat.id, db=self.db)
+                SimpleNamespace(), self.project.id, self.chat.id,
+                return_view="development", db=self.db)
         self.assertEqual(approved.status_code, 303)
+        self.assertIn("view=development", approved.headers["location"])
+        self.assertIn("#project-timeline", approved.headers["location"])
         data = load_project_timeline(
             self.db, self.project, is_admin=True, linked_repo=REPO)
         self.assertTrue(data["approved"])
@@ -333,6 +361,7 @@ class ReplanTests(unittest.TestCase):
         self.assertIn("Schválit nové termíny", html)
         self.assertIn("2026-12-20", html)
         self.assertIn("actions/approve", html)
+        self.assertIn('name="return_view" value="development"', html)
         self.assertIn("Návrh – čeká na schválení", html)
         self.assertIn("Zápis do GitHub Issues", html)
 

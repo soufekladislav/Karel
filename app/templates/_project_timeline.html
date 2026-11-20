@@ -12,6 +12,7 @@
       <strong class="is-late">Návrh je chybný: datum neodpovídá původnímu požadavku. Vytvoř nový návrh v chatu.</strong>
       {% elif can_edit %}
       <form method="post" action="/projects/{{ project.id }}/chat/{{ pending_schedule.chat_id }}/actions/approve">
+        <input type="hidden" name="return_view" value="development">
         <button class="btn primary small" type="submit">Schválit nové termíny</button>
       </form>
       {% endif %}
