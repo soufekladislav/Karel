@@ -1,6 +1,6 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.3-github-document-context`.**
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.4-github-chat-audit`.**
 Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
 
 **Oprava starých formulářů (20. 11. 2026):** WordPress Fresh Core `manifest.json` vložený i do staršího formuláře „Manifest projektu / aplikace“ je bezpečně rozpoznán a předán `/fresh-core/manifest-connect`. Zapisuje se pouze šifrovaná URL a ověřené READ údaje. Po úspěchu nebo chybě se uživatel vrací na `?view=website#fresh-core-pripojeni`, nikoli do chatu. Obecné manifesty jiných aplikací nadále používají původní cestu. Podrobnosti v [Issue #19](https://github.com/soufekladislav/Karel/issues/19).
@@ -13,6 +13,8 @@ Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav
 - **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.
 - Dřívější [PR #14](https://github.com/soufekladislav/Karel/pull/14) a [PR #21](https://github.com/soufekladislav/Karel/pull/21) jsou **sloučeny do `main`**. Žádné ruční skládání jejich souborů není potřeba.
 - **Sloučení v GitHubu není automatické nasazení na Exon.** Skutečná verze na serveru se musí ověřit zvlášť (manifest/health/logy).
+
+**Hotfix skutečného GitHub dotazu v chatu (20. 11. 2026):** Na konkrétní výzvu `projdi / zkontroluj GitHub` Karel nyní používá `github_chat_audit.py` přímo z orchestrátoru. Pokud projekt má vazbu na repozitář, sám vykoná časově označené READ čtení (s omezením opakování), vytvoří věcný přehled včetně odkazů na dokumentaci a Issues a uloží stav do projektu. Administrátorský projekt přesně pojmenovaný `Developer Karel` může bezpečně rozpoznat vlastní `soufekladislav/Karel` i bez ručního kopírování URL; u jiných projektů se identita nehádá. Odpověď na `co už umíš?` nyní výslovně odlišuje aktuální implementaci od budoucích funkcí. Čtení kódu je stále omezené a není plnohodnotným auditem zdrojových souborů.
 
 ## Současné schopnosti a omezení
 - GitHub: při ruční synchronizaci Karel nově čte obsah nejvýše 3 **vybraných Markdown dokumentů** (typicky README, produktovou dokumentaci, AGENTS), připne jejich blob SHA a bezpečně omezené výňatky uloží se snapshotem i do kontextu chatu. Na GitHub kartě vypíše, co skutečně četl. **Nejde o kompletní audit kódu** a GitHub Projects v2/delta sync/zápisy jsou stále otevřené (#20, #9). Přejímací otázka: „Co je Linda a co má umět?“ musí mít odpověď z README a docs/PARITY.md i při nulových Issues.

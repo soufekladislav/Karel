@@ -6,6 +6,8 @@ import re
 from sqlalchemy.orm import Session
 
 from ..models import Project, Chat, User
+from .github_chat_audit import (is_audit_request, audit_for_chat,
+                                is_capabilities_question, capabilities_reply)
 from .tool_layer import (
     get_project, get_project_map, list_tasks, list_library, search_library,
     search_chat_history, search_project_history, search_account_history, search_project_memory,
@@ -91,6 +93,23 @@ def _json_block(title: str, data) -> str:
 def orchestrate(db: Session, project: Project, chat: Chat, user: User, query: str, current_message_id: int | None = None) -> OrchestrationResult:
     q=_low(query)
     result=OrchestrationResult()
+
+    if is_capabilities_question(q):
+        result.mode='direct'
+        result.direct_response=capabilities_reply()
+        result.tools_used=['declared_capabilities']
+        return result
+
+    # An explicit GitHub audit must ACTUALLY invoke the project-scoped GitHub
+    # reader; a cached project map alone is not sufficient for this request.
+    # Deterministic sourced output prevents the LLM asking for a URL already
+    # associated with the current project or inventing a code review.
+    if is_audit_request(q):
+        response, mode = audit_for_chat(db, project, user)
+        result.mode='direct'
+        result.direct_response=response
+        result.tools_used=['github_audit_' + mode]
+        return result
 
     # Cheap deterministic reads: no LLM call needed.
     if _is_simple_task_list(q):
