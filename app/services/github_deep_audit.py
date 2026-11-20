@@ -39,7 +39,7 @@ def is_code_request(message):
                                  "kompletni github", "pokračuj v auditu",
                                  "pokracuj v auditu", "celý repozitář",
                                  "cely repozitar", "kód aplikace", "kod aplikace")) and any(
-        x in q for x in ("projdi", "pročti", "procti", "audit", "zkontrol",
+        x in q for x in ("projdi", "pročti", "procti", "přečti", "precti", "audit", "zkontrol",
                         "analyz", "reviz", "pokračuj", "pokracuj", "zmapuj"))
 
 
@@ -140,7 +140,8 @@ def scan_code(db, project: Project, user: User, *, reader_factory=GitHubReader):
         state = {}
     if state.get("sha") != sha or state.get("repo") != repo:
         state = {"repo": repo, "sha": sha, "index": 0, "offset": 0,
-                 "fetched_chunks": 0, "skipped": [], "started_at": datetime.now(timezone.utc).isoformat()}
+                 "fetched_chunks": 0, "skipped": [], "skipped_count": 0,
+                 "started_at": datetime.now(timezone.utc).isoformat()}
     idx, offset = int(state["index"]), int(state["offset"])
     if idx >= len(files):
         return ("GitHub zdrojový audit dosáhl konce indexu " + str(len(files)) +
@@ -153,7 +154,9 @@ def scan_code(db, project: Project, user: User, *, reader_factory=GitHubReader):
             path = files[idx]
             contents, status = _read_file(reader, repo, sha, path)
             if status != "ok":
-                state["skipped"].append({"path": path, "reason": status})
+                state["skipped_count"] = int(state.get("skipped_count", 0)) + 1
+                if len(state["skipped"]) < 40:
+                    state["skipped"].append({"path": path, "reason": status})
                 idx += 1
                 offset = 0
                 fetched += 1
@@ -184,7 +187,7 @@ def scan_code(db, project: Project, user: User, *, reader_factory=GitHubReader):
              "Repo: " + repo + ", SHA " + sha + ". Zpracované pozice: " +
              str(idx) + "/" + str(len(files)) + " souborů; "
              "offset " + str(offset) + "; "
-             "přeskočeno " + str(len(state["skipped"])) + ".\n"
+             "přeskočeno " + str(state.get("skipped_count", len(state["skipped"]))) + ".\n"
              "Nezaměňuj čtení části souboru za audit celého kódu. "
              "Každou tvrzenou chybu podlož názvem souboru. "
              "Pokud zbývají soubory, nabídni pokračování v auditu, "
