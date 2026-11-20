@@ -24,11 +24,11 @@ def selected_scope(text: str) -> str:
         "kompletní", "kompletni", "celý karel", "cely karel",
         "plnou verzi", "hotovou aplikaci", "všechny funkce",
         "vsechny funkce", "bez omezení", "bez omezeni",
-        "variantu b", "varianta b",
+        "variantu b", "varianta b", "variantou b",
     )):
         return "full"
     if any(w in q for w in (
-        "variantu a", "varianta a", "omezené mvp", "omezene mvp",
+        "variantu a", "varianta a", "variantou a", "omezené mvp", "omezene mvp",
         "omezenou testovací", "omezenou testovaci",
         "mvp", "minimální verzi", "minimalni verzi",
         "jen základ", "jen zaklad", "základní verzi",

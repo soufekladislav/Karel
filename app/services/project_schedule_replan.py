@@ -29,6 +29,7 @@ def is_replan_request(message: str) -> bool:
         "milník", "milnik", "testovací verz", "testovaci verz",
         "projekt v pipeline", "v pipeline", "plán projektu",
         "dokončení karla", "dokončení projektu", "dokonceni karla",
+        "kompletní karel", "kompletni karel", "projekt karel",
     ))
     intent = any(x in q for x in (
         "probr", "nastav", "zaprac", "aktualiz", "změn", "zmen",

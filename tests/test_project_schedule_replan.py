@@ -73,6 +73,8 @@ class ReplanTests(unittest.TestCase):
             "Koukal jsem a není ten harmonogram aktualizovaný."))
         self.assertTrue(is_replan_request(
             "Nový termín funkční testovací verze do 20.12.2026."))
+        self.assertTrue(is_replan_request(
+            "Chci kompletní Karel do 20.12.2026."))
         self.assertTrue(is_schedule_overview_request(
             "Potřeboval bych si potvrdit termíny v pipeline..."))
         self.assertTrue(is_schedule_overview_request(
@@ -216,6 +218,37 @@ class ReplanTests(unittest.TestCase):
         self.assertIn("Varianta B",summary)
         self.assertIn("Codex",summary)
         self.assertIn("nejpozději 18.12.2026",summary)
+
+    def test_scope_selection_does_not_approve_unrelated_pending_action(self):
+        from app import main
+        from app.services.actions import parse_pending
+        original = self._say(
+            "Máme v Pipeline termín 29.1., chci ho opravit do 20.12.2026.")
+        unrelated = create_pending_action(
+            self.db, self.project.id,
+            {"type":"update_project", "title":"Změnit popis projektu",
+             "payload":{"description":"NECHTĚNÁ ZMĚNA"}},
+            source_message_id=original.id)
+        self.db.commit()
+        # Previously "Souhlasím..." matched generic approval before
+        # the message reached the schedule scope selector.
+        self.assertTrue(main.is_confirmation_message(
+            "Souhlasím s variantou A"))
+        self.assertTrue(is_scope_choice("Souhlasím s variantou A"))
+        with patch("app.main.require_user", return_value=self.user):
+            res = asyncio.run(main.send_message(
+                SimpleNamespace(), self.project.id, self.chat.id,
+                message="Souhlasím s variantou A", attachments=[],
+                db=self.db))
+        self.assertEqual(res.status_code,303)
+        self.assertNotEqual(self.project.description,"NECHTĚNÁ ZMĚNA")
+        self.assertEqual(parse_pending(unrelated)["state"],"dismissed")
+        rows=pending_group(self.db,self.project.id,chat_id=self.chat.id)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(parse_pending(rows[0])["type"],
+                         "approve_project_schedule")
+        self.assertFalse(self.db.scalars(select(ProjectMemory).where(
+            ProjectMemory.kind=="project_schedule")).all())
 
     def test_real_chat_route_uses_date_intent_and_approves_current_timeline(self):
         from app import main

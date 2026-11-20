@@ -981,7 +981,8 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     db.flush()
     # One explicit confirmation is enough. Confirmation never goes back to AI when a concrete
     # pending action exists for this chat.
-    if not attachment_meta and is_confirmation_message(user_msg.content):
+    if (not attachment_meta and not is_scope_choice(user_msg.content)
+            and is_confirmation_message(user_msg.content)):
         rows=pending_group(db,p.id,chat_id=c.id)
         if rows:
             batch=execute_pending_group(db,p,rows,u.id)
