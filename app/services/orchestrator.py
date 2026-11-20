@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from ..models import Project, Chat, User
 from .github_chat_audit import (is_audit_request, audit_for_chat,
                                 is_capabilities_question, capabilities_reply)
+from .github_deep_audit import (is_code_request, is_branches_request,
+                                scan_code, review_branches)
 from .tool_layer import (
     get_project, get_project_map, list_tasks, list_library, search_library,
     search_chat_history, search_project_history, search_account_history, search_project_memory,
@@ -104,11 +106,56 @@ def orchestrate(db: Session, project: Project, chat: Chat, user: User, query: st
     # reader; a cached project map alone is not sufficient for this request.
     # Deterministic sourced output prevents the LLM asking for a URL already
     # associated with the current project or inventing a code review.
+    # Analyze real sources through Fresh AI Engine. The tools fetch verified
+    # data; the LLM interprets user intent instead of printing the same rigid
+    # README excerpt for completely different questions.
+    if is_branches_request(q):
+        try:
+            evidence, mode = review_branches(db, project, user)
+        except Exception:
+            evidence, mode = 'GitHub větve není možné ověřeně načíst. Neprováděj žádné změny.', 'failed'
+        if mode == 'live_branch_comparison':
+            result.context_blocks.append(
+                'PRIMÁRNÍ ŽIVÝ ZDROJ: Ověřené porovnání větví. '
+                'Vysvětli nesloučené rozdíly srozumitelně, odliš historickou '
+                'větev od skutečně chybějící změny a nic neslučuj automaticky.\n' + evidence)
+            result.mode = 'ai'
+        else:
+            result.mode = 'direct'
+            result.direct_response = evidence
+        result.tools_used = ['github_branches_' + mode]
+        return result
+
+    if is_code_request(q):
+        try:
+            evidence, mode = scan_code(db, project, user)
+        except Exception:
+            evidence, mode = 'Čtení zdrojů se nepodařilo. Audit nebyl dokončen.', 'failed'
+        if mode in ('partial_scan', 'complete_index'):
+            result.mode = 'ai'
+            result.context_blocks.append(
+                'PRIMÁRNÍ ŽIVÝ ZDROJ: Ověřené výňatky skutečného kódu. '
+                'Analyzuj konkrétní kód, odkazy a testy. Přiznej, co ještě '
+                'zbývá; žádné funkce neodvozuj jen z názvů.\n' + evidence)
+        else:
+            result.mode = 'direct'
+            result.direct_response = evidence
+        result.tools_used = ['github_code_' + mode]
+        return result
+
     if is_audit_request(q):
         response, mode = audit_for_chat(db, project, user)
-        result.mode='direct'
-        result.direct_response=response
-        result.tools_used=['github_audit_' + mode]
+        if mode in ('live', 'cached', 'ephemeral', 'stale'):
+            result.mode = 'ai'
+            result.context_blocks.append(
+                'PRIMÁRNÍ ŽIVÝ ZDROJ: GitHub podklady. Zodpověz přesně '
+                'položenou otázku. Pro stav funkce používej důkazy a '
+                'odliš záměry dokumentace od implementace v kódu. '
+                'Odpověz analyticky, ne opakováním celého README.\n' + response)
+        else:
+            result.mode = 'direct'
+            result.direct_response = response
+        result.tools_used = ['github_audit_' + mode]
         return result
 
     # Cheap deterministic reads: no LLM call needed.

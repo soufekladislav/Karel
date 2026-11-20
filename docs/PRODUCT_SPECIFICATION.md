@@ -1,6 +1,6 @@
 # Karel – závazné produktové zadání (návrh 2026-11-18)
 
-**Stav:** návrh ke schválení v PR; tento dokument **není** tvrzením, že popsané funkce již existují.
+**Stav:** cílová produktová specifikace, průběžně ověřovaná v projektu. Původní dokumentační PR #2 byl sloučen 18. 11. 2026. Sloučení do kódu **není** schválením znění v aktuální projektové databázi ani důkazem hotových funkcí.
 **Úloha:** projektový manažer a orchestrátor vývoje pro Fresh Crackers. Karel **není programátor** ani náhrada GitHubu, Codexu nebo Fresh AI Engine.
 
 ## Obchodní cíl

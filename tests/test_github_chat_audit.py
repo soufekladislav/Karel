@@ -176,8 +176,8 @@ class GitHubAuditChatTests(unittest.TestCase):
             out = orchestrate(self.db, self.project, self.chat, self.user,
                               "Karle, projdi svou app Karel na GitHubu", 1)
         audit.assert_called_once()
-        self.assertEqual(out.mode, "direct")
-        self.assertIn("OVĚŘENÝ GITHUB", out.direct_response)
+        self.assertEqual(out.mode, "ai")
+        self.assertIn("OVĚŘENÝ GITHUB", "\n".join(out.context_blocks))
         self.assertIn("github_audit_live", out.tools_used)
 
     def test_self_capabilities_are_truthful_not_future_promises(self):

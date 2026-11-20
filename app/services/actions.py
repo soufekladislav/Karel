@@ -33,12 +33,15 @@ def _save_spec_value(db: Session, project_id: int, kind: str, value: str) -> Non
         return
     row = db.scalar(select(ProjectMemory).where(ProjectMemory.project_id==project_id, ProjectMemory.kind==kind).order_by(ProjectMemory.id.desc()))
     value = (value or '').strip()
-    if row:
-        row.title = PROJECT_SPEC_KINDS[kind]
-        row.content = value
-        row.verified = True
-    elif value:
-        db.add(ProjectMemory(project_id=project_id,kind=kind,title=PROJECT_SPEC_KINDS[kind],content=value,verified=True))
+    # Keep the previous approved specification as a historical version.
+    # The latest row wins in project_spec(); repeated identical approvals do
+    # not create duplicates and clearing a field requires a separate action.
+    if row and (row.content or '').strip() == value and row.verified:
+        return
+    if value:
+        db.add(ProjectMemory(project_id=project_id, kind=kind,
+                             title=PROJECT_SPEC_KINDS[kind],
+                             content=value, verified=True))
 
 
 def normalize_action(action: dict) -> dict | None:

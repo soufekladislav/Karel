@@ -299,7 +299,7 @@
     </div>
     {% elif view == 'docs' %}
     <div class="content-view fresh-clean"><header class="view-head"><div><div class="eyebrow">Projektová dokumentace</div><h2>Zadání a dokumentace</h2><p>Tady je hlavní zdroj pravdy pro projekt. Přehled projektu zobrazuje pouze stručné souhrny a harmonogram.</p></div></header>
-      <div class="fresh-summary"><strong>{{ project.name }}</strong><span>{{ document_memories|length }} záznamů · zdroj: projektová paměť</span><a class="btn secondary small" href="/projects/{{ project.id }}?view=development#workflow">Otevřít workflow projektu</a></div>
+      <div class="fresh-summary"><strong>{{ project.name }}</strong><span>{{ project_spec|length }} částí zadání · {{ document_memories|length }} dalších záznamů · zdroj: projektová paměť</span><a class="btn secondary small" href="/projects/{{ project.id }}?view=development#workflow">Otevřít workflow projektu</a></div>
       {% if can_edit %}
       <section class="karel-doc-guidance">
         <div><span class="eyebrow">ZAČNI ROZHOVOREM</span>
@@ -309,7 +309,14 @@
         <a class="btn primary" href="/projects/{{ project.id }}?view=chat&guide=project-start">Připravit zadání s Karlem</a>
       </section>
       <details class="fresh-detail"><summary>Upravit zadání ručně</summary><div class="fresh-detail-body"><form class="card form-grid project-spec-form inline-doc-form" method="post" action="/projects/{{ project.id }}/spec"><label>Účel projektu<textarea name="purpose" rows="3" placeholder="Proč projekt existuje a jakou hodnotu má přinést">{{ project_spec.get('purpose','') }}</textarea></label><div class="form-grid cols2"><label>Typ projektu<input name="project_type" value="{{ project_spec.get('project_type','') }}" placeholder="Např. Vývoj aplikace"></label><label>Cílový termín<input name="project_deadline" value="{{ project_spec.get('project_deadline','') }}" placeholder="Např. 30. 11. 2026"></label></div><label>Obchodní cíl<textarea name="business_goal" rows="3" placeholder="Proč má projekt obchodní smysl">{{ project_spec.get('business_goal','') }}</textarea></label><label>Hlavní funkce / zadání<textarea name="functional_goal" rows="5" placeholder="Co má projekt umět a komu má pomáhat">{{ project_spec.get('functional_goal','') }}</textarea></label><label>Rozsah projektu<textarea name="project_scope" rows="3" placeholder="Co do projektu patří a co ne">{{ project_spec.get('project_scope','') }}</textarea></label><label>Plán projektu<textarea name="project_plan" rows="6" placeholder="Etapy, milníky a pořadí práce">{{ project_spec.get('project_plan','') }}</textarea></label><button class="btn primary">Uložit hlavní zadání</button></form></div></details>{% endif %}
-      <details class="fresh-detail"><summary>Hlavní zadání a cíle</summary><div class="fresh-detail-body">{% for key,label in [('purpose','Účel'),('business_goal','Obchodní cíl'),('functional_goal','Funkční zadání'),('project_scope','Rozsah'),('project_plan','Plán')] %}<div class="fresh-doc-row"><b>{{ label }}</b><p>{{ project_spec.get(key) or 'Zatím nezadáno.' }}</p></div>{% endfor %}</div></details>
+      {% if proposals %}
+      <div class="project-alert" role="status">
+        <strong>Návrh zadání čeká na schválení.</strong>
+        Samotná diskuse ani návrh nejsou uloženým zadáním.
+        <a class="karel-text-link" href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}">Zkontrolovat a schválit v chatu</a>
+      </div>
+      {% endif %}
+      <details class="fresh-detail" {% if project_spec.get('purpose') or project_spec.get('business_goal') %}open{% endif %}><summary>Hlavní zadání a cíle</summary><div class="fresh-detail-body">{% for key,label in [('purpose','Účel'),('business_goal','Obchodní cíl'),('functional_goal','Funkční zadání'),('project_scope','Rozsah'),('project_plan','Plán')] %}<div class="fresh-doc-row"><b>{{ label }}</b><p>{{ project_spec.get(key) or 'Zatím nezadáno.' }}</p></div>{% endfor %}</div></details>
       {% for m in document_memories %}<details class="fresh-detail"><summary>{{ m.title or m.kind }} <span>{{ m.kind }} · {{ m.created_at.strftime('%d.%m.%Y') if m.created_at else '' }}</span></summary><div class="fresh-detail-body preline">{{ m.content }}</div></details>{% endfor %}
       <div class="fresh-hint">Automatické vytěžení ZIPu a verzovaná technická dokumentace: <b>Ve vývoji</b>. Stávající dokumentace a projektová paměť jsou dostupné.</div>
     </div>

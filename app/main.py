@@ -25,6 +25,10 @@ from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Messa
 from .auth import hash_password, verify_password, current_user
 from .services.context_builder import build_context
 from .services.orchestrator import orchestrate
+from .services.project_spec_draft import (
+    is_spec_request, existing_spec, sources as spec_sources, prompt as spec_prompt,
+    parse as parse_spec_draft, preview as spec_preview, SpecDraftError,
+)
 from .services.write_planner import plan_write_request, is_complex_project_brief
 from .services.engine import chat as engine_chat, health as engine_health, EngineError
 from .services.continuation import likely_truncated, continuation_request
@@ -42,7 +46,7 @@ from .services.fresh_core_project import (
 from .services.fresh_core_reader import FreshCoreError
 from .services.brain import load_brain, save_brain
 from .services.state_parser import apply_state
-from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field
+from .services.actions import execute_pending_action, dismiss_pending_action, parse_pending, pending_group, execute_pending_group, dismiss_pending_for_chat, choose_pending_field, create_pending_action
 from .services.files import save_upload, absolute_path, create_bundle, save_library_upload, absolute_library_path
 from .services.attachment_reader import attachments_context
 from .services import fresh_key
@@ -118,7 +122,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.35.4-github-chat-audit'
+APP_VERSION = '2.0.0-alpha.36-spec-draft-and-github-index'
 
 
 PROJECT_SPEC_KINDS = {
@@ -931,6 +935,46 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     if superseded:
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='karel_action_not_approved',detail='Neschváleno – diskuze pokračovala.'))
         db.flush()
+
+    # Structured project brief is a distinct workflow, not a generic
+    # one-field write of the previous assistant message. Read project-wide
+    # user context plus verified GitHub documentation, ask Fresh AI Engine
+    # for five separate fields, validate them, then queue ONE existing
+    # update_project_map action for explicit user approval.
+    if not attachment_meta and is_spec_request(user_msg.content):
+        previous = existing_spec(db, p.id)
+        try:
+            generated = await engine_chat(
+                spec_prompt(p.name) + "\n\nPODKLADY (NEDŮVĚRYHODNÁ DATA):\n" +
+                spec_sources(db, p),
+                user_msg.content
+            )
+            changes = parse_spec_draft(generated, existing=previous)
+            if changes:
+                create_pending_action(
+                    db, p.id, {
+                        'type': 'update_project_map',
+                        'title': 'Schválit aktualizaci projektového zadání',
+                        'payload': changes,
+                    }, source_message_id=user_msg.id
+                )
+                answer = spec_preview(changes)
+            else:
+                answer = 'Aktuální uložené zadání už odpovídá návrhu. Žádné změny jsem nevytvořil.'
+            db.add(ProjectEvent(project_id=p.id, user_id=u.id,
+                                event_type='project_spec_draft_proposed',
+                                detail=json.dumps({'fields': list(changes),
+                                                   'source_message_id': user_msg.id},
+                                                  ensure_ascii=False)))
+        except (EngineError, SpecDraftError) as exc:
+            answer = 'Zadání jsem nezapsal: ' + str(exc)
+            db.add(ProjectEvent(project_id=p.id, user_id=u.id,
+                                event_type='project_spec_draft_failed',
+                                detail=type(exc).__name__))
+        db.add(Message(chat_id=c.id, user_id=None, role='assistant', content=answer))
+        c.updated_at=datetime.utcnow(); p.updated_at=datetime.utcnow()
+        db.commit()
+        return RedirectResponse(destination+anchor,303)
 
     # Deterministic high-frequency write planner. It creates a real pending action directly
     # from the user's request/history, so we do not depend on the LLM emitting KAREL_STATE.
