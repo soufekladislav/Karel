@@ -36,11 +36,18 @@ def vault_ready() -> bool:
 
 
 def _fernet(*, create: bool = False):
-    from cryptography.fernet import Fernet
     try:
-        return Fernet(active_key(create=create).encode("ascii"))
+        # Ask the vault to validate the actual dependency before importing it.
+        raw_key = active_key(create=create)
+        from cryptography.fernet import Fernet
+        return Fernet(raw_key.encode("ascii"))
     except VaultUnavailable as exc:
         raise FreshCoreError(str(exc)) from exc
+    except ImportError as exc:
+        raise FreshCoreError(
+            "Na serveru chybí knihovna cryptography. "
+            "Správce musí nainstalovat požadavky do Python prostředí Karla."
+        ) from exc
 
 
 def seal_secret(secret: str, *, limit: int = 1800) -> str:
@@ -58,9 +65,15 @@ def seal_key(read_key: str) -> str:
 
 
 def unseal_key(encrypted: str) -> str:
-    from cryptography.fernet import InvalidToken
     try:
+        # No import of cryptography while Karel is merely starting.
+        from cryptography.fernet import InvalidToken
         return _fernet().decrypt((encrypted or "").encode("ascii")).decode("utf-8")
+    except ImportError as exc:
+        raise FreshCoreError(
+            "Na serveru chybí knihovna cryptography. "
+            "Správce musí nainstalovat požadavky do Python prostředí Karla."
+        ) from exc
     except (InvalidToken, ValueError, UnicodeError) as exc:
         raise FreshCoreError(
             "Uložený klíč nelze bezpečně přečíst. Ověř trezor nebo obnov propojení."

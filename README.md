@@ -1,9 +1,11 @@
 # Karel – projektový manažer a orchestrátor vývoje
 
-**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.1-fresh-core-manifest-route`.**
+**Aktuální vývojová verze v GitHub `main`: `2.0.0-alpha.35.2-passenger-startup-fix`.**
 Základní repozitář: [soufekladislav/Karel](https://github.com/soufekladislav/Karel).
 
 **Oprava starých formulářů (20. 11. 2026):** WordPress Fresh Core `manifest.json` vložený i do staršího formuláře „Manifest projektu / aplikace“ je bezpečně rozpoznán a předán `/fresh-core/manifest-connect`. Zapisuje se pouze šifrovaná URL a ověřené READ údaje. Po úspěchu nebo chybě se uživatel vrací na `?view=website#fresh-core-pripojeni`, nikoli do chatu. Obecné manifesty jiných aplikací nadále používají původní cestu. Podrobnosti v [Issue #19](https://github.com/soufekladislav/Karel/issues/19).
+
+**Hotfix HTTP 500 (20. 11. 2026):** aktualizován `passenger_wsgi.py` pro Python 3.12+; neinstalované `cryptography` v Exon venv již neshodí celého Karla při importu. Pro správnou činnost konektoru však musí být `requirements.txt` nainstalován **v Passenger venv**. Viz [návod k obnově 500](docs/EXON_SERVER_500_RECOVERY_2026-11-20.md).
 
 ## Vývojový režim (rozhodnutí 20. 11. 2026)
 - **`main` je jediná aktuální pracovní vývojová větev.** Karel je stále v raném vývoji a nemá nasazené projekty třetích stran. Vývojové větve a oddělené staging prostředí zavádět až při potřebě stabilizovaného vydání; u každé změny evidovat commit a testy.

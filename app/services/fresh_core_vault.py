@@ -10,8 +10,6 @@ import os
 import stat
 from pathlib import Path
 
-from cryptography.fernet import Fernet
-
 from ..config import settings
 
 
@@ -19,13 +17,31 @@ class VaultUnavailable(ValueError):
     pass
 
 
+def _fernet_class():
+    """Import the optional connector dependency only when needed.
+
+    A server that has not installed cryptography must still start Karel and
+    show its normal UI rather than returning HTTP 500 on every request.
+    """
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet
+    except ImportError as exc:
+        raise VaultUnavailable(
+            "Na serveru chybí knihovna cryptography. Správce musí spustit "
+            "pip install -r requirements.txt v Python prostředí Karla."
+        ) from exc
+
+
 def _validate_key(value: str) -> str:
     try:
         raw = value.strip().encode("ascii")
-        Fernet(raw)
+        _fernet_class()(raw)
         if len(raw) != 44:
             raise ValueError()
         return raw.decode("ascii")
+    except VaultUnavailable:
+        raise
     except (ValueError, TypeError, UnicodeError) as exc:
         raise VaultUnavailable("Fresh Core vault key má neplatný formát.") from exc
 
@@ -56,13 +72,15 @@ def active_key(*, create: bool = False) -> str:
             if descriptor is not None:
                 try:
                     with os.fdopen(descriptor, "wb") as handle:
-                        handle.write(Fernet.generate_key())
+                        handle.write(_fernet_class().generate_key())
                         handle.flush()
                         os.fsync(handle.fileno())
                 except BaseException:
                     p.unlink(missing_ok=True)
                     raise
-        except (OSError, VaultUnavailable) as exc:
+        except VaultUnavailable:
+            raise
+        except OSError as exc:
             raise VaultUnavailable(
                 "Na serveru se nepodařilo připravit bezpečný trezor. "
                 "Správce může nastavit FRESH_CORE_VAULT_KEY v .env."
