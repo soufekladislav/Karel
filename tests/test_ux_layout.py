@@ -118,13 +118,22 @@ class WorkspaceUxTests(unittest.TestCase):
 
     def test_context_chat_retains_screen_and_authoritative_approval(self):
         page = (ROOT / 'app' / 'templates' / 'project.html').read_text(encoding='utf-8')
+        base = (ROOT / 'app' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        drawer = (ROOT / 'app' / 'templates' / '_assistant_drawer.html').read_text(encoding='utf-8')
+        script = (ROOT / 'app' / 'static' / 'karel-assistant.js').read_text(encoding='utf-8')
         main = (ROOT / 'app' / 'main.py').read_text(encoding='utf-8')
-        self.assertIn('name="return_view"', page)
+        self.assertIn("include '_assistant_drawer.html'", base)
+        self.assertIn('id="karel-assistant-launcher"', drawer)
+        self.assertIn('id="karel-assistant-project"', drawer)
+        self.assertIn('id="karel-assistant-messages"', drawer)
+        self.assertIn("body.set(\"screen_context\"", script)
+        self.assertIn('"/assistant/approve"', script)
         self.assertIn("return_view:str=Form('chat')", main)
         self.assertIn("return_view not in safe_views", main)
-        self.assertIn('destination+anchor', main)
-        self.assertIn('Připravený návrh čeká na schválení', page)
-        self.assertIn('karel-quick-panel', page)
+        self.assertIn("await send_message(", main)
+        self.assertIn("response=approve_chat_actions(", main)
+        self.assertIn('Čeká na schválení', script)
+        self.assertNotIn('karel-quick-panel', page)
 
 
 if __name__ == '__main__':
