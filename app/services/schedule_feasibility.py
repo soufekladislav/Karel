@@ -34,6 +34,9 @@ def selected_scope(text: str) -> str:
         "jen základ", "jen zaklad", "základní verzi",
         "funkční testovací verze", "funkcni testovaci verze",
         "funkční testovací verzi", "funkcni testovaci verzi",
+        "omezeném testování", "omezenem testovani",
+        "omezeným testováním", "omezenym testovanim",
+        "omezeném předprodukčním", "omezenem predprodukcnim",
     )):
         return "limited_mvp"
     return "unspecified"

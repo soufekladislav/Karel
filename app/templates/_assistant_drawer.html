@@ -1,0 +1,57 @@
+{# Single assistant entry point across every authenticated screen. The floating
+   drawer operates on project-scoped, server-verified context and actions. #}
+{% if user and sidebar_projects %}
+<div class="karel-floating-assistant" id="karel-floating-assistant"
+     data-current-project="{{ project.id if project is defined and project else '' }}">
+  <button type="button" class="karel-assistant-launcher" id="karel-assistant-launcher"
+          aria-controls="karel-assistant-drawer" aria-expanded="false"
+          aria-label="Otevřít Karla – asistenta této obrazovky">
+    <img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png"
+         alt="" width="35" height="35">
+    <span>Karel</span>
+    <span class="karel-launcher-pending" id="karel-launcher-pending" hidden></span>
+  </button>
+  <section class="karel-assistant-drawer" id="karel-assistant-drawer" hidden
+           role="dialog" aria-label="Karel – kontextový asistent">
+    <header class="karel-assistant-drawer-head">
+      <div><strong>Karel</strong><small>Projektový manažer · práce s důkazem</small></div>
+      <button class="karel-assistant-close" type="button" id="karel-assistant-close"
+              aria-label="Zavřít asistenta">×</button>
+    </header>
+    <div class="karel-assistant-selection">
+      <label for="karel-assistant-project">Pracuji na projektu</label>
+      <select id="karel-assistant-project" aria-label="Aktivní projekt asistenta">
+        <option value="">Vyber projekt…</option>
+        {% for entry in sidebar_projects %}
+        <option value="{{ entry.id }}"
+                {% if project is defined and project and project.id == entry.id %}selected{% endif %}>
+          {{ entry.name }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="karel-assistant-location" id="karel-assistant-location" aria-live="polite">
+        Otevři asistenta na konkrétní obrazovce projektu.
+      </div>
+    </div>
+    <div id="karel-assistant-receipt" class="karel-assistant-receipt" hidden></div>
+    <div class="karel-assistant-messages" id="karel-assistant-messages"
+         aria-label="Nedávné zprávy" aria-live="polite" aria-relevant="additions">
+      <p>Vyber projekt a Karel načte poslední komunikaci.</p>
+    </div>
+    <div class="karel-assistant-approval" id="karel-assistant-approval" hidden></div>
+    <form id="karel-assistant-form" class="karel-assistant-composer">
+      <label for="karel-assistant-input" class="sr-only">Zpráva Karlovi</label>
+      <textarea id="karel-assistant-input" name="message" rows="2"
+                placeholder="Co mám na této obrazovce udělat?" required maxlength="5000"></textarea>
+      <div class="karel-assistant-actions">
+        <span id="karel-assistant-working" role="status"></span>
+        <button type="submit" class="btn primary small" id="karel-assistant-send">Odeslat</button>
+      </div>
+      <a href="#" id="karel-assistant-full-chat" class="karel-assistant-full-chat">
+        Otevřít kompletní konverzaci
+      </a>
+    </form>
+  </section>
+</div>
+<script src="/static/karel-assistant.js?v=1" defer></script>
+{% endif %}

@@ -92,7 +92,7 @@
         {% endif %}
         <div id="bottom"></div>
       </div>
-      <div id="chat-loader" class="chat-loader" hidden><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>Karel pracuje…</b><span id="chat-loader-text">Ukládám zprávu</span><div class="loader-line"><i></i></div></div></div>{% if can_edit %}<form class="composer" id="chatComposer" method="post" enctype="multipart/form-data" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/send"><textarea name="message" rows="3" placeholder="Napiš Karlovi…" autofocus></textarea><div class="composer-bar"><label class="attach-btn">📎 Přiložit<input type="file" name="attachments" multiple hidden></label><span class="hint">JSON, log, screenshot, ZIP, dokument…</span><button class="btn primary" id="sendButton">Odeslat</button></div></form>{% else %}<div class="composer read-only">Projekt máš pouze pro čtení.</div>{% endif %}
+      <div id="chat-loader" class="chat-loader" hidden><img src="https://www.freshcrackers.cz/wp-content/uploads/2026/09/ai-developer-1024x768.png" alt="Karel"><div><b>Karel pracuje…</b><span id="chat-loader-text">Ukládám zprávu</span><div class="loader-line"><i></i></div></div></div>{% if can_edit %}<form class="composer" id="chatComposer" method="post" enctype="multipart/form-data" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/send"><textarea name="message" rows="3" placeholder="Napiš Karlovi…"></textarea><div class="composer-bar"><label class="attach-btn">📎 Přiložit<input type="file" name="attachments" multiple hidden></label><span class="hint">JSON, log, screenshot, ZIP, dokument…</span><button class="btn primary" id="sendButton">Odeslat</button></div></form>{% else %}<div class="composer read-only">Projekt máš pouze pro čtení.</div>{% endif %}
     </div>
     <aside class="karel-context-panel" aria-label="Pracovní panel projektu">
       <div class="context-panel-head"><strong>Pracovní panel</strong><small>Souvislosti k aktuálnímu projektu</small></div>
@@ -502,36 +502,20 @@
     </div>
     {% endif %}
   </section>
-  {% if view != 'chat' %}
-  <aside class="karel-quick-panel" id="karel-assistant" aria-label="Kontextový chat Karla">
-    <div class="karel-quick-header"><div><strong>Chat s Karlem</strong><small>Aktuální projekt: {{ project.name }}</small></div><a href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}" title="Otevřít celý chat">Otevřít ↗</a></div>
-    <div class="karel-quick-messages">
-      {% for m in messages[-6:] %}
-      <div class="karel-quick-message {% if m.role=='user' %}from-user{% endif %}">
-        <b>{% if m.role=='assistant' %}Karel{% else %}Ty{% endif %}</b>
-        <div class="karel-quick-text">{{ m.content|truncate(700)|message_md|safe }}</div>
-      </div>
-      {% else %}
-      <p class="karel-quick-empty">Zeptej se na zadání, úkoly nebo další postup projektu.</p>
-      {% endfor %}
-      {% if proposals %}<p class="karel-quick-pending">Připravený návrh čeká na schválení. <a href="/projects/{{ project.id }}?view=chat&chat_id={{ active_chat.id }}">Zobrazit v chatu</a>.</p>{% endif %}
-    </div>
-    {% if can_edit %}
-    <form class="karel-quick-form" method="post" action="/projects/{{ project.id }}/chat/{{ active_chat.id }}/send">
-      <input type="hidden" name="return_view" value="{{ view }}">
-      <label for="karel-quick-input" class="sr-only">Dotaz pro Karla</label>
-      <textarea id="karel-quick-input" name="message" rows="3" required placeholder="Zeptej se Karla k této obrazovce…"></textarea>
-      <div class="karel-quick-form-actions"><span>Kontext: {{ {'docs':'Zadání','github':'GitHub','development':'Pipeline','tasks':'Úkoly','settings':'Nastavení'}.get(view,view) }}</span><button type="submit" class="btn primary small">Odeslat</button></div>
-    </form>
-    {% else %}<p class="karel-quick-readonly">K projektu máš přístup pouze pro čtení.</p>{% endif %}
-  </aside>
-  {% endif %}
+
 </div>
 
 {% include '_project_mobile_nav.html' %}
 <script>
 fetch('/engine/status').then(r=>r.json()).then(d=>{const e=document.getElementById('engineBadge');if(!e)return;e.closest('.source-health')?.classList.add(d.ok?'ok':'bad');e.textContent=d.ok?'Engine online':'Engine problém';e.title=d.detail||''}).catch(()=>{});
-const box=document.getElementById('messages'); if(box){requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight;});}
+const box=document.getElementById('messages');
+if(box){
+  // Render the most recent message immediately, before first paint. Avoid
+  // delayed smooth scrolling that visibly drags the whole conversation.
+  box.style.scrollBehavior='auto';
+  box.scrollTop=box.scrollHeight;
+  window.addEventListener('pageshow',()=>{box.scrollTop=box.scrollHeight;});
+}
 const fi=document.querySelector('.composer input[type=file]'),hint=document.querySelector('.composer .hint'); if(fi&&hint){fi.addEventListener('change',()=>hint.textContent=fi.files.length?`${fi.files.length} příloh připraveno`:'JSON, log, screenshot, ZIP, dokument…')}
 const ta=document.querySelector('.composer textarea');
 if(ta && !ta.value.trim()){

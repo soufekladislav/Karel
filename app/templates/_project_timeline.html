@@ -90,7 +90,8 @@
         <span>Milník a přejímka</span><span>Časová osa (od {{ project_timeline.start_date }} do {{ project_timeline.end_date }})</span><span>Začátek / termín</span>
       </div>
       {% for item in project_timeline['items'] %}
-      <div class="karel-timeline-cols karel-timeline-row">
+      <div class="karel-timeline-cols karel-timeline-row"
+           data-karel-entity="milestone:{{ item.id }}">
         <div class="karel-timeline-descr">
           <strong>{{ item.id }} · {{ item.title }}</strong>
           <p>{{ item.acceptance }}</p>

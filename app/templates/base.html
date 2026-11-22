@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/app.css?v=37">
+  <link rel="stylesheet" href="/static/app.css?v=38">
 </head>
 <body>
 
@@ -19,6 +19,7 @@
 <nav class="account-mobile-nav" aria-label="Mobilní navigace"><a href="/">Projekty</a><a href="/library">Knihovna</a><a href="/settings">Nastavení</a><a href="/account">Účet</a></nav>
 {% endif %}
 <main class="page {% block pageclass %}{% endblock %} {% if user and self.pageclass()|trim != 'project-page project-v2' %}with-global-sidebar{% endif %}">{% block content %}{% endblock %}</main>
+{% include '_assistant_drawer.html' %}
 <script>
 function toggle(id){const e=document.getElementById(id); if(e) e.classList.toggle('open')}
 function fillPrompt(text){const t=document.querySelector('.composer textarea'); if(!t)return; t.value=text; t.focus();}

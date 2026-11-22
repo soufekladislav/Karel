@@ -30,6 +30,7 @@ def is_replan_request(message: str) -> bool:
         "projekt v pipeline", "v pipeline", "plán projektu",
         "dokončení karla", "dokončení projektu", "dokonceni karla",
         "kompletní karel", "kompletni karel", "projekt karel",
+        "do pipeline", "pipeline projektu",
     ))
     intent = any(x in q for x in (
         "probr", "nastav", "zaprac", "aktualiz", "změn", "zmen",
@@ -38,7 +39,11 @@ def is_replan_request(message: str) -> bool:
         "není", "neni", "uprav", "oprav", "rozvrhn", "potvr",
         "nový", "novy", "nově", "nove", "stanov",
     ))
-    return subject and intent
+    ci_only = any(x in q for x in (
+        "github actions", "ci pipeline", "build pipeline", "workflow.yml",
+        "workflow.yaml", "release pipeline",
+    ))
+    return subject and intent and not ci_only
 
 # The previous implementation accepted the FIRST date matching "do", which
 # silently confused the old value with the newly requested deadline:
@@ -48,7 +53,7 @@ _TARGET_VERB = re.compile(
     r"\b(?:chci|chtěl\w*|chtel\w*|ideálně|idealne|nejpozději|"
     r"nově|nove|cílově|cilove|oprav\w*|uprav\w*|změn\w*|zmen\w*|"
     r"posu\w*|přesu\w*|presu\w*|přeplán\w*|preplan\w*|"
-    r"rozvrhn\w*|dokonč\w*|dokonc\w*|dotáhn\w*|dotahn\w*|"
+    r"rozvrhn\w*|zaprac\w*|ulož\w*|uloz\w*|zapiš\w*|zapis\w*|dokonč\w*|dokonc\w*|dotáhn\w*|dotahn\w*|"
     r"nastav\w*|potřeb\w*|potreb\w*)\b"
 )
 _OLD_VALUE = re.compile(

@@ -24,6 +24,9 @@ from .database import Base, engine, get_db, SessionLocal
 from .models import User, Project, ProjectMember, ProjectInvitation, Chat, Message, Task, ProjectFile, ProjectMemory, ProjectEvent, LibraryItem, ProjectStage, GitHubRepoLink
 from .auth import hash_password, verify_password, current_user
 from .services.context_builder import build_context
+from .services.assistant_work_context import screen_evidence, clean_screen
+from .services.assistant_panel_state import assistant_state
+from .services.action_claim_guard import qualify_unverified_reply
 from .services.orchestrator import orchestrate
 from .services.project_spec_draft import (
     is_spec_request, existing_spec, sources as spec_sources, prompt as spec_prompt,
@@ -127,7 +130,7 @@ def render_message_text(value):
 templates.env.filters['message_md'] = render_message_text
 
 STATUS_LABELS = {'todo':'Nezahájeno','working':'Ve vývoji','waiting_user':'Čeká na uživatele','testing':'V testování','done':'Dokončeno','failed':'Chyba','archived':'Archivováno'}
-APP_VERSION = '2.0.0-alpha.37.1-pipeline-github-publish'
+APP_VERSION = '2.0.0-alpha.38-action-chat'
 
 
 PROJECT_SPEC_KINDS = {
@@ -183,6 +186,20 @@ def action_result_text(batch: dict) -> str:
     if results and not errors:
         if len(results)==1:
             r=results[0]; typ=r.get('type')
+            # Only database-verified results may be described as executed.
+            # Give the user a concrete address or record identifier.
+            if typ=='approve_project_schedule':
+                return ('✓ Uloženo a ověřeno z databáze: Pipeline verze '+
+                        str(r.get('version') or '?')+', '+
+                        str(r.get('milestones_saved') or '?')+
+                        ' milníků. Zkontroluj /projects/'+
+                        str(r.get('project_id') or '')+
+                        '?view=development#project-timeline. '
+                        'GitHub synchronizace se ověřuje samostatně.')
+            if typ in ('create_task','update_task') and r.get('task_id'):
+                return ('✓ Ověřený zápis: TASK-'+str(r['task_id'])+
+                        ' v /projects/'+str(r.get('project_id') or '')+
+                        '?view=tasks. Tento výsledek není důkazem dokončeného vývoje.')
             labels={
                 'update_project':'Projekt byl upraven.',
                 'update_project_map':'Projektová mapa byla aktualizována.',
@@ -956,8 +973,70 @@ def delete_project(request:Request, project_id:int, confirmation_name:str=Form('
     except OSError: pass
     return RedirectResponse('/?notice='+quote('Projekt byl trvale smazán.'),303)
 
+@app.get('/projects/{project_id}/assistant/state')
+def floating_assistant_state(request:Request, project_id:int,
+                             screen:str='chat', db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    p=get_project_or_404(db,u,project_id)
+    return JSONResponse(assistant_state(
+        db,p,u,screen=clean_screen(screen),can_edit=can_edit_project(db,u,p)))
+
+
+@app.post('/projects/{project_id}/assistant/send')
+async def floating_assistant_send(
+        request:Request, project_id:int, chat_id:int=Form(0),
+        message:str=Form(''), screen_context:str=Form('chat'),
+        focus_target:str=Form(''), db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    p=get_project_or_404(db,u,project_id,write=True)
+    if not message.strip():
+        raise HTTPException(400,'Napiš Karlovi zprávu.')
+    c=db.get(Chat,chat_id) if chat_id else None
+    if c is None and chat_id:
+        raise HTTPException(404,'Zvolený chat neexistuje.')
+    if c is not None and (c.project_id != p.id or c.is_archived):
+        raise HTTPException(404,'Chat nepatří aktuálnímu projektu.')
+    if c is None:
+        c=Chat(project_id=p.id,title='Pracovní chat')
+        db.add(c)
+        db.flush()
+        db.commit()
+    # Reuse the same execution, approval and audit path as full chat.
+    await send_message(
+        request,project_id,c.id,message=message.strip(),attachments=[],
+        return_view='chat',screen_context=clean_screen(screen_context),
+        focus_target=(focus_target[:40] if isinstance(focus_target,str) else ''),
+        db=db)
+    return JSONResponse(assistant_state(
+        db,p,u,screen=clean_screen(screen_context),
+        can_edit=can_edit_project(db,u,p)))
+
+
+@app.post('/projects/{project_id}/assistant/approve')
+def floating_assistant_approve(
+        request:Request, project_id:int, chat_id:int=Form(...),
+        db:Session=Depends(get_db)):
+    u=require_user(request,db)
+    p=get_project_or_404(db,u,project_id,write=True)
+    c=db.get(Chat,chat_id)
+    if not c or c.project_id!=p.id or c.is_archived:
+        raise HTTPException(404,'Chat nepatří aktuálnímu projektu.')
+    response=approve_chat_actions(
+        request,project_id,chat_id,return_view='development',db=db)
+    # The approval route is the authoritative action execution path. Its
+    # redirect is intentionally not sent to the widget: refresh verified DB.
+    state=assistant_state(db,p,u,screen='development',
+                          can_edit=can_edit_project(db,u,p))
+    from urllib.parse import parse_qs
+    result_location=response.headers.get('location','')
+    params=parse_qs(urlsplit(result_location).query)
+    state['approval_notice']=(params.get('error') or params.get('notice') or
+                              ['Akce proběhla; zkontroluj výsledek v projektu.'])[0]
+    return JSONResponse(state)
+
+
 @app.post('/projects/{project_id}/chat/{chat_id}/send')
-async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), return_view:str=Form('chat'), db:Session=Depends(get_db)):
+async def send_message(request:Request, project_id:int, chat_id:int, message:str=Form(''), attachments:list[UploadFile]=File(default=[]), return_view:str=Form('chat'), screen_context:str=Form(''), focus_target:str=Form(''), db:Session=Depends(get_db)):
     u=require_user(request,db); p=get_project_or_404(db,u,project_id,write=True)
     c=db.get(Chat,chat_id)
     if not c or c.project_id!=p.id: raise HTTPException(404)
@@ -966,7 +1045,9 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
         return_view = 'chat'
     destination = (f'/projects/{p.id}/github?chat_id={c.id}' if return_view == 'github'
                    else f'/projects/{p.id}?view={return_view}&chat_id={c.id}')
-    anchor = '#bottom' if return_view == 'chat' else '#karel-assistant'
+    # The scroll container is positioned synchronously by the chat UI.
+    # Fragment navigation caused the entire page to visibly jump after reload.
+    anchor = ''
     if not message.strip() and not attachments: return RedirectResponse(destination,303)
     user_msg=Message(chat_id=c.id,user_id=u.id,role='user',content=message.strip() or '[Příloha bez textu]')
     db.add(user_msg); db.flush()
@@ -982,6 +1063,7 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
     # One explicit confirmation is enough. Confirmation never goes back to AI when a concrete
     # pending action exists for this chat.
     if (not attachment_meta and not is_scope_choice(user_msg.content)
+            and not is_replan_request(user_msg.content)
             and is_confirmation_message(user_msg.content)):
         rows=pending_group(db,p.id,chat_id=c.id)
         if rows:
@@ -1255,15 +1337,25 @@ async def send_message(request:Request, project_id:int, chat_id:int, message:str
             extracted,reports=attachments_context(recent_files)
             attachment_sources.append('STARŠÍ PŘÍLOHY Z TOHOTO PROJEKTU, přečtené na výslovnou žádost uživatele:\n'+extracted)
     system=build_context(db,p,c,u,query=user_msg.content,extra_sources=attachment_sources+tool_blocks) + "\n\n" + workflow_context(get_stages(db,p.id))
-    if return_view != 'chat':
-        labels = {'docs':'Zadání a obchodní cíle','github':'GitHub','development':'Pipeline projektu',
-                  'tasks':'Úkoly projektu','settings':'Nastavení projektu','testing':'Testování',
-                  'releases':'Release','outputs':'Výstupy','history':'Historie',
-                  'files':'Soubory','components':'Komponenty'}
-        system += "\nKONTEXT UI: dotaz byl položen na obrazovce " + labels.get(return_view,return_view) + ". Neodvozuj konkrétní data, která nebyla skutečně načtena."
+    # User-visible workspace comes from an explicit screen label; all actual
+    # records are resolved server-side within this authorized project.
+    # Never fetch Karel's own UI URL through SOURCE_ALLOWED_HOSTS.
+    screen = (screen_context if isinstance(screen_context, str) and screen_context
+              else return_view if isinstance(return_view, str) else 'chat')
+    focus = focus_target if isinstance(focus_target, str) else ''
+    system += "\n\n" + screen_evidence(db, p, u, clean_screen(screen), focus).get('context', '')
+    system += ("\n\nPRAVIDLO PROVEDENÍ: V chatu nesmíš napsat 'zapracováno', "
+               "'uloženo' ani 'nasazeno', pokud neexistuje skutečný výsledek "
+               "ověřené backendové akce. Pokud jen navrhuješ, řekni NÁVRH, "
+               "připrav schvalovací akci nebo přiznej její absenci. "
+               "Když je uživatel na Pipeline, vždy upřednostni schválená "
+               "datumovaná data před textovým plánem Projektové mapy.")
     try:
         raw=await engine_chat(system, user_msg.content, attachment_meta)
         visible=apply_state(db,p.id,c.id,raw,source_message_id=user_msg.id,allow_actions=not is_complex_project_brief(user_msg.content))
+        visible=qualify_unverified_reply(
+            user_msg.content,visible,
+            pending_actions=bool(pending_group(db,p.id,chat_id=c.id)))
         db.add(ProjectEvent(project_id=p.id,user_id=u.id,event_type='orchestrator_ai',detail=json.dumps({'tools':orchestration.tools_used},ensure_ascii=False)[:1800]))
     except EngineError as e:
         visible='[[ENGINE_UNAVAILABLE]] Karel se teď nemůže spojit s AI službou. Zprávu jsem uložil; můžeš ji zkusit odeslat znovu.'
