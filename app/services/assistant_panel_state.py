@@ -64,10 +64,16 @@ def _receipt(db, project_id: int) -> dict | None:
 
 
 def assistant_state(db, project, user, *,
-                    screen="chat", can_edit=False) -> dict:
-    active = db.scalar(select(Chat).where(
-        Chat.project_id == project.id, Chat.is_archived == False,
-    ).order_by(Chat.updated_at.desc(), Chat.id.desc()))
+                    screen="chat", can_edit=False, chat_id=None) -> dict:
+    # Honor the conversation that the user is actually viewing. Never
+    # reuse a chat ID belonging to a different project.
+    active = db.get(Chat,chat_id) if isinstance(chat_id,int) and chat_id>0 else None
+    if active and (active.project_id != project.id or active.is_archived):
+        active = None
+    if active is None:
+        active = db.scalar(select(Chat).where(
+            Chat.project_id == project.id, Chat.is_archived == False,
+        ).order_by(Chat.updated_at.desc(), Chat.id.desc()))
     context = screen_evidence(db, project, user, screen)
     if not active:
         return {

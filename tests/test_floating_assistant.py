@@ -163,6 +163,22 @@ class AssistantFlowTests(unittest.TestCase):
         self.assertNotIn("requestAnimationFrame(()=>{box.scrollTop",proj)
         self.assertNotIn('placeholder="Napiš Karlovi…" autofocus',proj)
 
+    def test_selected_chat_must_belong_to_selected_project(self):
+        from app.services.assistant_panel_state import assistant_state
+        foreign = Chat(project_id=self.other.id,title="Cizí chat")
+        second = Chat(project_id=self.project.id,title="Druhý chat")
+        self.db.add_all([foreign,second])
+        self.db.commit()
+        own = assistant_state(
+            self.db,self.project,self.user,screen="chat",
+            chat_id=self.chat.id,can_edit=True)
+        self.assertEqual(own["chat_id"],self.chat.id)
+        guarded = assistant_state(
+            self.db,self.project,self.user,screen="chat",
+            chat_id=foreign.id,can_edit=True)
+        self.assertNotEqual(guarded["chat_id"],foreign.id)
+        self.assertEqual(guarded["project_id"],self.project.id)
+
     def test_api_state_uses_authorized_project(self):
         from app import main
         with patch("app.main.require_user",return_value=self.user):

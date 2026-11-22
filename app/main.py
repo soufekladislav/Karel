@@ -198,8 +198,8 @@ def action_result_text(batch: dict) -> str:
                         'GitHub synchronizace se ověřuje samostatně.')
             if typ in ('create_task','update_task') and r.get('task_id'):
                 return ('✓ Ověřený zápis: TASK-'+str(r['task_id'])+
-                        ' v /projects/'+str(r.get('project_id') or '')+
-                        '?view=tasks. Tento výsledek není důkazem dokončeného vývoje.')
+                        ' v '+str(r.get('target_url') or 'přehledu Úkoly')+
+                        '. Tento výsledek není důkazem dokončeného vývoje.')
             labels={
                 'update_project':'Projekt byl upraven.',
                 'update_project_map':'Projektová mapa byla aktualizována.',
@@ -975,11 +975,13 @@ def delete_project(request:Request, project_id:int, confirmation_name:str=Form('
 
 @app.get('/projects/{project_id}/assistant/state')
 def floating_assistant_state(request:Request, project_id:int,
-                             screen:str='chat', db:Session=Depends(get_db)):
+                             screen:str='chat', chat_id:int|None=None,
+                             db:Session=Depends(get_db)):
     u=require_user(request,db)
     p=get_project_or_404(db,u,project_id)
     return JSONResponse(assistant_state(
-        db,p,u,screen=clean_screen(screen),can_edit=can_edit_project(db,u,p)))
+        db,p,u,screen=clean_screen(screen),can_edit=can_edit_project(db,u,p),
+        chat_id=chat_id))
 
 
 @app.post('/projects/{project_id}/assistant/send')
@@ -1009,7 +1011,7 @@ async def floating_assistant_send(
         db=db)
     return JSONResponse(assistant_state(
         db,p,u,screen=clean_screen(screen_context),
-        can_edit=can_edit_project(db,u,p)))
+        can_edit=can_edit_project(db,u,p),chat_id=c.id))
 
 
 @app.post('/projects/{project_id}/assistant/approve')
@@ -1026,7 +1028,7 @@ def floating_assistant_approve(
     # The approval route is the authoritative action execution path. Its
     # redirect is intentionally not sent to the widget: refresh verified DB.
     state=assistant_state(db,p,u,screen='development',
-                          can_edit=can_edit_project(db,u,p))
+                          can_edit=can_edit_project(db,u,p),chat_id=c.id)
     from urllib.parse import parse_qs
     result_location=response.headers.get('location','')
     params=parse_qs(urlsplit(result_location).query)

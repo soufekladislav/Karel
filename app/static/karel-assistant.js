@@ -173,8 +173,12 @@
     const serial = ++revision;
     busyState(true, "Načítám ověřený kontext…");
     try {
+      const viewedChat = selectedProject() === visibleProject
+        ? (url.searchParams.get("chat_id") || "") : "";
+      const chatParam = /^\d{1,12}$/.test(viewedChat)
+        ? "&chat_id=" + viewedChat : "";
       const data = await requestJSON("/projects/" + id + "/assistant/state?screen=" +
-        encodeURIComponent(activeScreen()));
+        encodeURIComponent(activeScreen()) + chatParam);
       if (serial !== revision) return;
       renderState(data);
     } catch (error) {
